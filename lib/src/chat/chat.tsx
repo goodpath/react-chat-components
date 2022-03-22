@@ -199,15 +199,6 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
   useEffect(() => {
     if (!pubnub) return;
     setupListeners();
-
-    /* Try to unsubscribe beofore window is unloaded */
-    window.addEventListener("beforeunload", () => {
-      pubnub.stop();
-    });
-
-    return () => {
-      pubnub.stop();
-    };
   }, [pubnub]);
 
   useEffect(() => {
