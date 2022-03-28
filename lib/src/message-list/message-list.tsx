@@ -295,6 +295,9 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         CurrentChannelPaginationAtom,
         !allMessages.length || newMessages.length !== props.fetchMessages
       );
+      if(response.more) {
+        fetchMoreHistory()
+      }
     }, [])
   );
 
