@@ -105,11 +105,13 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if ((event.target as Element).closest(".pn-msg__reactions-toggle")) return;
     setEmojiPickerShown(false);
   });
-  const spinnerObserver = useRef(
+  const listSizeObserver = useRef(new ResizeObserver(() => handleListMutations()));
+  const listMutObserver = useRef(new MutationObserver(() => handleListMutations()));
+  const spinnerIntObserver = useRef(
     new IntersectionObserver((e) => e[0].isIntersecting === true && fetchMoreHistory())
   );
-  const bottomObserver = useRef(
-    new IntersectionObserver((e) => handleBottomScroll(e[0].isIntersecting))
+  const bottomIntObserver = useRef(
+    new IntersectionObserver((e) => handleBottomIntersection(e[0].isIntersecting))
   );
 
   /*
@@ -132,18 +134,29 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const scrollToBottom = () => {
     if (!endRef.current) return;
-    endRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setScrolledBottom(true);
+    endRef.current.scrollIntoView({ block: "end" });
   };
 
   const setupSpinnerObserver = () => {
     if (!spinnerRef.current) return;
-    spinnerObserver.current.observe(spinnerRef.current);
+    spinnerIntObserver.current.observe(spinnerRef.current);
   };
 
   const setupBottomObserver = () => {
     if (!endRef.current) return;
-    bottomObserver.current.disconnect();
-    bottomObserver.current.observe(endRef.current);
+    bottomIntObserver.current.disconnect();
+    bottomIntObserver.current.observe(endRef.current);
+  };
+
+  const setupListObservers = () => {
+    if (!listRef.current) return;
+
+    listSizeObserver.current.disconnect();
+    listSizeObserver.current.observe(listRef.current);
+
+    listMutObserver.current.disconnect();
+    listMutObserver.current.observe(listRef.current, { childList: true });
   };
 
   const getUser = (uuid: string) => {
@@ -268,10 +281,21 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     [reactingToMessage]
   );
 
-  const handleBottomScroll = (scrolledBottom: boolean) => {
+  const handleBottomIntersection = (isIntersecting: boolean) => {
     try {
-      if (scrolledBottom) setUnreadMessages(0);
-      setScrolledBottom(scrolledBottom);
+      if (isIntersecting) setUnreadMessages(0);
+      setScrolledBottom(isIntersecting);
+    } catch (e) {
+      onError(e);
+    }
+  };
+
+  const handleListMutations = () => {
+    try {
+      setScrolledBottom((scrolledBottom) => {
+        if (scrolledBottom) scrollToBottom();
+        return scrolledBottom;
+      });
     } catch (e) {
       onError(e);
     }
@@ -328,6 +352,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if (!pubnub || !channel) return;
     if (!messages?.length) fetchHistory();
     setupSpinnerObserver();
+    setupListObservers();
   }, [channel]);
 
   useEffect(() => {
@@ -448,11 +473,18 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         {Object.keys(reactions).map((reaction) => {
           const instances = reactions[reaction];
           const userReaction = instances?.find((i) => i.uuid === pubnub.getUUID());
+          const userNames = instances.map((i) => {
+            const user = users.find((u) => u.id === i.uuid);
+            return user ? user.name : i.uuid;
+          });
 
           return (
             <div
-              className={`pn-msg__reaction ${userReaction ? "pn-msg__reaction--active" : ""}`}
+              className={`pn-tooltip pn-msg__reaction ${
+                userReaction ? "pn-msg__reaction--active" : ""
+              }`}
               key={reaction}
+              data-tooltip={userNames.join(", ")}
               onClick={() => {
                 userReaction
                   ? removeReaction(reaction, envelope.timetoken, userReaction.actionTimetoken)

@@ -98,13 +98,17 @@ export const MessageInput: FC<MessageInputProps> = (props: MessageInputProps) =>
     }, 0);
   };
 
+  const isValidInputText = () => {
+    return !!text.trim().length;
+  };
+
   /*
   /* Commands
   */
 
   const sendMessage = async () => {
     try {
-      if (!file && !text) return;
+      if (!file && !isValidInputText()) return;
       setLoader(true);
 
       if (file) {
@@ -165,7 +169,7 @@ export const MessageInput: FC<MessageInputProps> = (props: MessageInputProps) =>
   const handleEmojiInsertion = (emoji: { native: string }) => {
     try {
       if (!("native" in emoji)) return;
-      setText(text + emoji.native);
+      setText((text) => text + emoji.native);
       setEmojiPickerShown(false);
     } catch (e) {
       onError(e);
@@ -305,7 +309,7 @@ export const MessageInput: FC<MessageInputProps> = (props: MessageInputProps) =>
 
         {!props.hideSendButton && !props.disabled && (
           <button
-            className={`pn-msg-input__send ${text.length && "pn-msg-input__send--active"}`}
+            className={`pn-msg-input__send ${isValidInputText() && "pn-msg-input__send--active"}`}
             disabled={loader || props.disabled}
             onClick={() => sendMessage()}
             title="Send"

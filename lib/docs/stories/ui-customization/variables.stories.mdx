@@ -39,9 +39,11 @@ dark mode, you must use a component class name instead of the `:root` element:
 --chat--light__background--3: #eaeef3;
 --chat--light__background--4: #01bd4c;
 --chat--light__background--5-rgb: #{hexToRGB(#ef3a43)};
+--chat--light__background--6: #{rgba(#1c1c1c, 0.8)};
 --chat--light__color--1: #585858;
 --chat--light__color--2: #999999;
 --chat--light__color--2-rgb: #{hexToRGB(#999999)};
+--chat--light__color--3: #eeeeee;
 --chat--light__border--1: #ced6e0;
 --chat--light__border--2: #bcc6d1;
 --chat--light__hover--1: #de2440;
@@ -55,8 +57,10 @@ dark mode, you must use a component class name instead of the `:root` element:
 --chat--dark__background--3: #2a2a39;
 --chat--dark__background--4: #01bd4c;
 --chat--dark__background--5: #{hexToRGB(#ef3a43)};
+--chat--dark__background--6: #{rgba(#f0f3f7, 0.8)};
 --chat--dark__color--1: rgba(#e4e4eb, 0.8);
 --chat--dark__color--2: #999999;
+--chat--dark__color--3: #111111;
 --chat--dark__border--1: #28293d;
 --chat--dark__hover--1: #de2440;
 --chat--dark__hover--2: #232333;
@@ -253,15 +257,21 @@ dark mode, you must use a component class name instead of the `:root` element:
 --member__name__color: var(--chat--light__color--1);
 --member__name__fontSize: 13px;
 --member__name__fontWeight: 400;
---member__name__padding: 0;
 --member__name__margin: 0;
+--member__name__overflow: hidden;
+--member__name__padding: 0;
+--member__name__textOverflow: ellipsis;
+--member__name__whiteSpace: nowrap;
 
 --member__title__color: var(--chat--light__color--2);
---member__title__display: inline-block;
+--member__title__display: block;
 --member__title__fontSize: 11px;
 --member__title__fontWeight: 400;
---member__title__padding: 7px 0 0;
 --member__title__margin: 0;
+--member__title__overflow: hidden;
+--member__title__padding: 7px 0 0;
+--member__title__textOverflow: ellipsis;
+--member__title__whiteSpace: nowrap;
 
 --member__presence__border: 3px solid var(--chat--light__background--2);
 --member__presence__borderRadius: 100%;
@@ -279,6 +289,7 @@ dark mode, you must use a component class name instead of the `:root` element:
 --member__actions__fontSize: 18px;
 --member__actions__margin: 0 0 0 4px;
 --member__actions__padding: 3px 5px;
+--member__actions__visibility: hidden;
 ```
 
 ### Member List (Dark)
@@ -316,17 +327,23 @@ dark mode, you must use a component class name instead of the `:root` element:
 --channel--active__name__color: var(--chat--light__color--1);
 --channel__name__fontSize: 13px;
 --channel__name__fontWeight: 400;
---channel__name__padding: 0;
 --channel__name__margin: 0;
+--channel__name__overflow: hidden;
+--channel__name__padding: 0;
+--channel__name__textOverflow: ellipsis;
+--channel__name__whiteSpace: nowrap;
 
 --channel__description__color: var(--chat--light__color--2);
 --channel--hover__description__color: var(--chat--light__color--2);
 --channel--active__description__color: var(--chat--light__color--2);
---channel__description__display: inline-block;
+--channel__description__display: block;
 --channel__description__fontSize: 11px;
 --channel__description__fontWeight: 400;
---channel__description__padding: 7px 0 0;
 --channel__description__margin: 0;
+--channel__description__overflow: hidden;
+--channel__description__padding: 7px 0 0;
+--channel__description__textOverflow: ellipsis;
+--channel__description__whiteSpace: nowrap;
 
 --channel__actions--hover__background: transparent;
 --channel__actions__background: transparent;
@@ -336,6 +353,7 @@ dark mode, you must use a component class name instead of the `:root` element:
 --channel__actions__fontSize: 18px;
 --channel__actions__margin: 0 0 0 4px;
 --channel__actions__padding: 3px 5px;
+--channel__actions__visibility: hidden;
 ```
 
 ### Channel List (Dark)
@@ -377,4 +395,25 @@ dark mode, you must use a component class name instead of the `:root` element:
 ```css
 --typing-indicator__background: var(--chat--dark__background--1);
 --typing-indicator__color: var(--chat--dark__color--1);
+```
+
+## Common elements
+
+```css
+--tooltip__transition: all 0.3s ease;
+--tooltip__background: var(--chat--light__background--6);
+--tooltip__borderRadius: 5px;
+--tooltip__color: var(--chat--light__color--3);
+--tooltip__margin: 8px;
+--tooltip__padding: 5px;
+--tooltip__minWidth: 100px;
+--tooltip__arrow__size: 4px;
+--tooltip__arrow__margin: 0px;
+```
+
+### Common elements (Dark)
+
+```css
+--tooltip__background: var(--chat--dark__background--6);
+--tooltip__color: var(--chat--dark__color--3);
 ```
