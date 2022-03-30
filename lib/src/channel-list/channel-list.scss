@@ -140,7 +140,7 @@
     color: var(--channel__actions__color);
     cursor: pointer;
     display: flex;
-    visibility: var(--channel__actions__visibility);
+    visibility: visible;
     font-size: var(--channel__actions__fontSize);
 
     & > * {
