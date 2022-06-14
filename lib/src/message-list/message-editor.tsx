@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { getLastMessageUpdate } from "../helpers";
 import { MessageEnvelope, StandardMessage } from "../types";
@@ -19,9 +19,7 @@ const Button = styled.button`
 const MessageEditor = ({ onSubmit = () => {}, envelope }: Props) => {
   const [value, setValue] = useState("");
 
-  console.log("asdfasdf", envelope);
-
-  React.useEffect(() => {
+  useEffect(() => {
     const editedText = getLastMessageUpdate(envelope);
     setValue(editedText || (envelope.message as StandardMessage).text);
   }, [envelope?.message]);
