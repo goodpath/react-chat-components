@@ -269,6 +269,21 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     }
   };
 
+  const deleteMessage = async (messageTimetoken) => {
+    try {
+      await pubnub.addMessageAction({
+        channel,
+        messageTimetoken,
+        action: {
+          type: "deleted",
+          value: ".",
+        },
+      });
+    } catch (e) {
+      onError(e);
+    }
+  };
+
   const fetchFileUrl = (envelope: MessageEnvelope) => {
     if (!isFileMessage(envelope.message)) return envelope;
 
@@ -426,7 +441,11 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
       setEdit(false);
     };
 
-    if (deleted) return;
+    const onDeleteHandler = () => {
+      deleteMessage(envelope.timetoken);
+    };
+
+    if (deleted) return null;
 
     return (
       <div className={`pn-msg ${currentUserClass}`} key={envelope.timetoken}>
@@ -450,7 +469,12 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
               <EmojiIcon />
             </div>
           )}
-          <MessageActions canEdit={canEdit} onEdit={() => setEdit(!edit)} />
+          <MessageActions
+            canEdit={canEdit}
+            onEdit={() => setEdit(!edit)}
+            canDelete={isOwn}
+            onDelete={onDeleteHandler}
+          />
         </div>
       </div>
     );
