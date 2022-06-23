@@ -19,6 +19,7 @@ import {
   LinkAttachment,
   EmojiPickerElementProps,
   FileAttachment,
+  StandardMessage,
 } from "../types";
 import {
   CurrentChannelAtom,
@@ -29,12 +30,19 @@ import {
   RetryFunctionAtom,
   ErrorFunctionAtom,
 } from "../state-atoms";
-import { getNameInitials, getPredefinedColor, useOuterClick } from "../helpers";
+import {
+  getLastMessageUpdate,
+  getNameInitials,
+  getPredefinedColor,
+  useOuterClick,
+} from "../helpers";
 import SpinnerIcon from "../icons/spinner.svg";
 import EmojiIcon from "../icons/emoji.svg";
 import DownloadIcon from "../icons/download.svg";
 import ArrowDownIcon from "../icons/arrow-down.svg";
 import "./message-list.scss";
+import MessageActions from "./message-actions";
+import MessageEditor from "./message-editor";
 
 export interface MessageRendererProps {
   isOwn: boolean;
@@ -246,6 +254,36 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     }
   };
 
+  const updateMessage = async (value: string, messageTimetoken) => {
+    try {
+      await pubnub.addMessageAction({
+        channel,
+        messageTimetoken,
+        action: {
+          type: "updated",
+          value,
+        },
+      });
+    } catch (e) {
+      onError(e);
+    }
+  };
+
+  const deleteMessage = async (messageTimetoken) => {
+    try {
+      await pubnub.addMessageAction({
+        channel,
+        messageTimetoken,
+        action: {
+          type: "deleted",
+          value: ".",
+        },
+      });
+    } catch (e) {
+      onError(e);
+    }
+  };
+
   const fetchFileUrl = (envelope: MessageEnvelope) => {
     if (!isFileMessage(envelope.message)) return envelope;
 
@@ -319,8 +357,8 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         CurrentChannelPaginationAtom,
         !allMessages.length || newMessages.length !== props.fetchMessages
       );
-      if(response.more) {
-        fetchMoreHistory()
+      if (response.more) {
+        fetchMoreHistory();
       }
     }, [])
   );
@@ -380,23 +418,42 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const renderWelcomeMessages = () => {
     if (!props.welcomeMessages) return;
-    return Array.isArray(props.welcomeMessages)
-      ? props.welcomeMessages.map((m) => renderItem(m))
-      : renderItem(props.welcomeMessages);
+    return Array.isArray(props.welcomeMessages) ? (
+      props.welcomeMessages.map((m) => <Item key={m.uuid} envelope={m} />)
+    ) : (
+      <Item envelope={props.welcomeMessages!} />
+    );
   };
 
-  const renderItem = (envelope: MessageEnvelope) => {
+  const Item = ({ envelope }: { envelope: MessageEnvelope }) => {
     const uuid = envelope.uuid || envelope.publisher || "";
-    const currentUserClass = isOwnMessage(uuid) ? "pn-msg--own" : "";
+    const isOwn = isOwnMessage(uuid);
+    const currentUserClass = isOwn ? "pn-msg--own" : "";
     const actions = envelope.actions;
     const deleted = !!Object.keys(actions?.deleted || {}).length;
-    const message = isFileMessage(envelope.message) ? envelope.message.message : envelope.message;
+    const isFile = isFileMessage(envelope.message);
+    const message = (isFile ? envelope.message.message : envelope.message) as StandardMessage;
+    const canEdit = isOwn && !isFile;
+    const [edit, setEdit] = React.useState(false);
 
-    if (deleted) return;
+    const onEditHandler = (value: string) => {
+      updateMessage(value, envelope.timetoken);
+      setEdit(false);
+    };
+
+    const onDeleteHandler = () => {
+      deleteMessage(envelope.timetoken);
+    };
+
+    if (deleted) return null;
 
     return (
       <div className={`pn-msg ${currentUserClass}`} key={envelope.timetoken}>
-        {renderMessage(envelope)}
+        {edit ? (
+          <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
+        ) : (
+          renderMessage(envelope)
+        )}
         <div className="pn-msg__actions">
           {props.extraActionsRenderer && props.extraActionsRenderer(envelope)}
           {props.reactionsPicker && message?.type !== "welcome" && (
@@ -412,6 +469,12 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
               <EmojiIcon />
             </div>
           )}
+          <MessageActions
+            canEdit={canEdit}
+            onEdit={() => setEdit(!edit)}
+            canDelete={isOwn}
+            onDelete={onDeleteHandler}
+          />
         </div>
       </div>
     );
@@ -427,7 +490,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     const attachments = message?.attachments || [];
     const file = isFileMessage(envelope.message) && envelope.message.file;
     const actions = envelope.actions;
-    const editedText = (Object.entries(actions?.updated || {}).pop() || []).shift() as string;
+    const editedText = getLastMessageUpdate(envelope);
 
     if (props.messageRenderer && (props.filter ? props.filter(envelope) : true))
       return props.messageRenderer({ message: envelope, user, time, date, isOwn, editedText });
@@ -585,7 +648,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
         {(!props.fetchMessages || (!fetchingMessages && !messages.length)) &&
           renderWelcomeMessages()}
-        {messages && messages.map((m) => renderItem(m))}
+        {messages && messages.map((m) => <Item key={m.uuid} envelope={m} />)}
 
         {props.children}
 

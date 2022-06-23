@@ -1,4 +1,5 @@
 import { useRef, useEffect, MutableRefObject, MouseEvent } from "react";
+import { MessageEnvelope } from "./types";
 
 export const getNameInitials = (name: string): string => {
   if (!name || !name.length) return "";
@@ -42,4 +43,22 @@ export const useOuterClick = (
   }, []);
 
   return innerRef;
+};
+
+export const getLastMessageUpdate = (envelope: MessageEnvelope): string => {
+  const actions = envelope?.actions;
+  return Object.entries(actions?.updated || {})?.reduce(
+    (acc, entry) => {
+      const key = entry[0];
+      const value = entry[1][0];
+      const timetoken = Number(value?.actionTimetoken);
+
+      if (timetoken > acc[1]) {
+        acc[1] = timetoken;
+        acc[0] = key;
+      }
+      return acc;
+    },
+    ["", 0]
+  )[0] as string;
 };

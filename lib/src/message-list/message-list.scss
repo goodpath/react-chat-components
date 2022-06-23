@@ -22,14 +22,10 @@
   --msg__padding: 10px 16px;
   --msg__actions--hover__background: transparent;
   --msg__actions--hover__color: var(--chat--light__hover--1);
-  --msg__actions--hover__border: 1px solid var(--chat--light__border--1);
   --msg__actions__background: transparent;
-  --msg__actions__border: 1px solid var(--chat--light__border--1);
-  --msg__actions__borderRadius: 15px;
   --msg__actions__color: var(--chat--light__color--2);
   --msg__actions__fontSize: 22px;
   --msg__actions__margin: 0 0 0 4px;
-  --msg__actions__padding: 0 7px;
   --msg__actions__right: 10px;
   --msg__actions__top: 10px;
   --msg__author__color: var(--chat--light__color--1);
@@ -182,16 +178,12 @@
 
     & > * {
       background: var(--msg__actions__background);
-      border: var(--msg__actions__border);
-      border-radius: var(--msg__actions__borderRadius);
       display: flex;
       margin: var(--msg__actions__margin);
-      padding: var(--msg__actions__padding);
     }
 
     & > *:hover {
       background: var(--msg__actions--hover__background);
-      border: var(--msg__actions--hover__border);
       color: var(--msg__actions--hover__color);
     }
   }
@@ -371,10 +363,8 @@
 
   --msg--hover__background: var(--chat--dark__border--1);
   --msg__actions--hover__color: var(--chat--dark__hover--1);
-  --msg__actions--hover__border: 1px solid var(--chat--dark__background--1);
   --msg__actions--hover__background: var(--chat--dark__background--1);
   --msg__actions__background: var(--chat--dark__background--1);
-  --msg__actions__border: 1px solid var(--chat--dark__background--1);
   --msg__actions__color: var(--chat--dark__color--2);
   --msg__author__color: var(--chat--dark__color--1);
   --msg__bubble__color: var(--chat--dark__color--1);
