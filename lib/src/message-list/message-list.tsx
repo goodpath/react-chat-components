@@ -12,12 +12,7 @@ import { FetchMessagesResponse, UUIDMetadataObject, ObjectCustom } from "pubnub"
 import { usePubNub } from "pubnub-react";
 import { useAtom } from "jotai";
 import { useAtomCallback } from "jotai/utils";
-import {
-  MessageEnvelope,
-  isFileMessage,
-  EmojiPickerElementProps,
-  StandardMessage,
-} from "../types";
+import { MessageEnvelope, isFileMessage, EmojiPickerElementProps, StandardMessage } from "../types";
 import {
   CurrentChannelAtom,
   CurrentChannelMessagesAtom,
@@ -27,9 +22,7 @@ import {
   RetryFunctionAtom,
   ErrorFunctionAtom,
 } from "../state-atoms";
-import {
-  useOuterClick,
-} from "../helpers";
+import { useOuterClick } from "../helpers";
 import SpinnerIcon from "../icons/spinner.svg";
 import EmojiIcon from "../icons/emoji.svg";
 import ArrowDownIcon from "../icons/arrow-down.svg";
@@ -131,12 +124,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     spinnerIntObserver.current.observe(spinnerRef.current);
   };
 
-  const setupBottomObserver = () => {
-    if (!endRef.current) return;
-    bottomIntObserver.current.disconnect();
-    bottomIntObserver.current.observe(endRef.current);
-  };
-
   const setupListObservers = () => {
     if (!listRef.current) return;
 
@@ -169,7 +156,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
       handleHistoryFetch(history);
       scrollToBottom();
       setupSpinnerObserver();
-      setupBottomObserver();
     } catch (e) {
       onError(e);
     } finally {
@@ -306,10 +292,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const handleListMutations = () => {
     try {
-      setScrolledBottom((scrolledBottom) => {
-        if (scrolledBottom) scrollToBottom();
-        return scrolledBottom;
-      });
+      scrolledBottom && scrollToBottom();
     } catch (e) {
       onError(e);
     }
@@ -384,7 +367,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if (!scrolledBottom && messagesFromListener)
       setUnreadMessages(unreadMessages + messagesFromListener);
 
-    setupBottomObserver();
     setPrevMessages(messages);
   }, [messages]);
 
