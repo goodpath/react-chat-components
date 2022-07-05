@@ -15,10 +15,7 @@ import { useAtomCallback } from "jotai/utils";
 import {
   MessageEnvelope,
   isFileMessage,
-  ImageAttachment,
-  LinkAttachment,
   EmojiPickerElementProps,
-  FileAttachment,
   StandardMessage,
 } from "../types";
 import {
@@ -31,18 +28,15 @@ import {
   ErrorFunctionAtom,
 } from "../state-atoms";
 import {
-  getLastMessageUpdate,
-  getNameInitials,
-  getPredefinedColor,
   useOuterClick,
 } from "../helpers";
 import SpinnerIcon from "../icons/spinner.svg";
 import EmojiIcon from "../icons/emoji.svg";
-import DownloadIcon from "../icons/download.svg";
 import ArrowDownIcon from "../icons/arrow-down.svg";
 import "./message-list.scss";
 import MessageActions from "./message-actions";
 import MessageEditor from "./message-editor";
+import { MessageRenderer } from "./message-renderer";
 
 export interface MessageRendererProps {
   isOwn: boolean;
@@ -126,25 +120,11 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   /* Helper functions
   */
 
-  const getTime = (timestamp: number) => {
-    const ts = String(timestamp);
-    const date = new Date(parseInt(ts) / 10000);
-    const formatter = new Intl.DateTimeFormat([], { timeStyle: "short" });
-    return formatter.format(date);
-  };
-
-  const getDate = (timestamp: number) => {
-    const ts = String(timestamp);
-    const date = new Date(parseInt(ts) / 10000);
-    const formatter = new Intl.DateTimeFormat([], { dateStyle: "full", timeStyle: "short" });
-    return formatter.format(date);
-  };
-
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     if (!endRef.current) return;
     setScrolledBottom(true);
     endRef.current.scrollIntoView({ block: "end" });
-  };
+  }, []);
 
   const setupSpinnerObserver = () => {
     if (!spinnerRef.current) return;
@@ -165,10 +145,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
     listMutObserver.current.disconnect();
     listMutObserver.current.observe(listRef.current, { childList: true });
-  };
-
-  const getUser = (uuid: string) => {
-    return users.find((u) => u.id === uuid);
   };
 
   const isOwnMessage = (uuid: string) => {
@@ -452,7 +428,13 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         {edit ? (
           <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
         ) : (
-          renderMessage(envelope)
+          <MessageRenderer
+            envelope={envelope}
+            messageListProps={props}
+            scrollToBottom={scrollToBottom}
+            scrolledBottom={scrolledBottom}
+            renderReactions={renderReactions}
+          />
         )}
         <div className="pn-msg__actions">
           {props.extraActionsRenderer && props.extraActionsRenderer(envelope)}
@@ -477,53 +459,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
           />
         </div>
       </div>
-    );
-  };
-
-  const renderMessage = (envelope: MessageEnvelope) => {
-    const uuid = envelope.uuid || envelope.publisher || "";
-    const time = getTime(envelope.timetoken as number);
-    const date = getDate(envelope.timetoken as number);
-    const isOwn = isOwnMessage(uuid);
-    const message = isFileMessage(envelope.message) ? envelope.message.message : envelope.message;
-    const user = message?.sender || getUser(uuid);
-    const attachments = message?.attachments || [];
-    const file = isFileMessage(envelope.message) && envelope.message.file;
-    const actions = envelope.actions;
-    const editedText = getLastMessageUpdate(envelope);
-
-    if (props.messageRenderer && (props.filter ? props.filter(envelope) : true))
-      return props.messageRenderer({ message: envelope, user, time, date, isOwn, editedText });
-
-    return (
-      <>
-        <div className="pn-msg__avatar" style={{ backgroundColor: getPredefinedColor(uuid) }}>
-          {user?.profileUrl ? (
-            <img src={user.profileUrl} alt="User avatar" />
-          ) : (
-            getNameInitials(user?.name || uuid)
-          )}
-        </div>
-        <div className="pn-msg__main">
-          <div className="pn-msg__content">
-            <div className="pn-msg__title">
-              <span className="pn-msg__author">{user?.name || uuid}</span>
-              <span className="pn-msg__time">{props.enableReactions ? date : time}</span>
-            </div>
-            {message?.text &&
-              (props.bubbleRenderer && (props.filter ? props.filter(envelope) : true) ? (
-                props.bubbleRenderer({ message: envelope, user, time, date, isOwn, editedText })
-              ) : (
-                <div className="pn-msg__bubble">{editedText || message?.text}</div>
-              ))}
-          </div>
-          <div className="pn-msg__extras">
-            {file && file.name && renderFile(file)}
-            {attachments.map(renderAttachment)}
-            {props.enableReactions && renderReactions(envelope)}
-          </div>
-        </div>
-      </>
     );
   };
 
@@ -570,65 +505,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     );
   };
 
-  const renderFile = (file: FileAttachment) => {
-    return (
-      <div className="pn-msg__file">
-        {/\.(svg|gif|jpe?g|tiff?|png|webp|bmp)$/i.test(file.name) ? (
-          <img
-            alt={file.name}
-            className="pn-msg__image"
-            src={file.url}
-            onLoad={() => {
-              if (scrolledBottom) scrollToBottom();
-            }}
-          />
-        ) : (
-          <div className="pn-msg__bubble">
-            <a
-              className="pn-msg__nonImage"
-              href={file.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-            >
-              {file.name}
-              <DownloadIcon className="pn-msg__downloadIcon" />
-            </a>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderAttachment = (attachment: ImageAttachment | LinkAttachment, key: number) => {
-    return (
-      <div key={key} className="pn-msg__attachments">
-        {attachment.type === "image" && (
-          <img className="pn-msg__image" src={attachment.image?.source} />
-        )}
-
-        {attachment.type === "link" && (
-          <a
-            className="pn-msg__link"
-            href={attachment.provider?.url}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            <img src={attachment.image?.source} />
-            <div>
-              <p className="pn-msg__link-name">
-                <img src={attachment.icon?.source} />
-                {attachment.provider?.name}
-              </p>
-              <p className="pn-msg__link-title">{attachment.title}</p>
-              <p className="pn-msg__link-description">{attachment.description}</p>
-            </div>
-          </a>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className={`pn-msg-list pn-msg-list--${theme}`}>
       {unreadMessages > 0 && (
@@ -648,7 +524,10 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
         {(!props.fetchMessages || (!fetchingMessages && !messages.length)) &&
           renderWelcomeMessages()}
-        {messages && messages.map((m) => <Item key={m.uuid} envelope={m} />)}
+        {messages &&
+          messages.map((m) => {
+            return <Item key={m.timetoken} envelope={m} />;
+          })}
 
         {props.children}
 
