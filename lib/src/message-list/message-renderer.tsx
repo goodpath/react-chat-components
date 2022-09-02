@@ -1,7 +1,7 @@
 import { usePubNub } from "pubnub-react";
 import React, { memo } from "react";
 import { getLastMessageUpdate, getNameInitials, getPredefinedColor } from "../helpers";
-import { isFileMessage,  MessageEnvelope } from "../types";
+import { isFileMessage, MessageEnvelope } from "../types";
 import { FileRenderer } from "./file-renderer";
 import { useAtom } from "jotai";
 import { UsersMetaAtom } from "../state-atoms";
@@ -70,7 +70,7 @@ export const MessageRenderer = memo(
           <div className="pn-msg__content">
             <div className="pn-msg__title">
               <span className="pn-msg__author">{user?.name || uuid}</span>
-              <span className="pn-msg__time">{messageListProps.enableReactions ? date : time}</span>
+              <span className="pn-msg__time">{messageListProps.enableDate ? date : time}</span>
             </div>
             {message?.text &&
               (messageListProps.bubbleRenderer &&
