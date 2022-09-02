@@ -1893,7 +1893,7 @@
 
 "@goodpath/react-chat-components@file:/home/manos/Documents/repos/Goodpath/react-chat-components/lib":
   "resolved" "file:lib"
-  "version" "0.10.2"
+  "version" "0.10.4"
   dependencies:
     "@szhsin/react-menu" "^3.1.0"
     "jotai" "^1.3.0"
