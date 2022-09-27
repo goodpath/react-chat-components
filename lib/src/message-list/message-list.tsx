@@ -354,7 +354,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   useEffect(() => {
     if (React.isValidElement(props.reactionsPicker)) {
-      setPicker(React.cloneElement(props.reactionsPicker, { onSelect: handleEmojiInsertion }));
+      setPicker(React.cloneElement(props.reactionsPicker, { onEmojiSelect: handleEmojiInsertion }));
     }
   }, [props.reactionsPicker, handleEmojiInsertion]);
 
