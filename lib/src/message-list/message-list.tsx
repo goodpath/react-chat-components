@@ -12,7 +12,7 @@ import { FetchMessagesResponse, UUIDMetadataObject, ObjectCustom } from "pubnub"
 import { usePubNub } from "pubnub-react";
 import { useAtom } from "jotai";
 import { useAtomCallback } from "jotai/utils";
-import { MessageEnvelope, isFileMessage, EmojiPickerElementProps, StandardMessage } from "../types";
+import { MessageEnvelope, isFilePayload, EmojiPickerElementProps, MessagePayload } from "../types";
 import {
   CurrentChannelAtom,
   CurrentChannelMessagesAtom,
@@ -247,7 +247,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   };
 
   const fetchFileUrl = (envelope: MessageEnvelope) => {
-    if (!isFileMessage(envelope.message)) return envelope;
+    if (!isFilePayload(envelope.message)) return envelope;
 
     try {
       const url = pubnub.getFileUrl({
@@ -389,8 +389,8 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     const currentUserClass = isOwn ? "pn-msg--own" : "";
     const actions = envelope.actions;
     const deleted = !!Object.keys(actions?.deleted || {}).length;
-    const isFile = isFileMessage(envelope.message);
-    const message = (isFile ? envelope.message.message : envelope.message) as StandardMessage;
+    const isFile = isFilePayload(envelope.message);
+    const message = (isFile ? envelope.message.message : envelope.message) as MessagePayload;
     const canEdit = isOwn && !isFile;
     const [edit, setEdit] = React.useState(false);
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { getLastMessageUpdate } from "../helpers";
-import { MessageEnvelope, StandardMessage } from "../types";
+import { MessageEnvelope, MessagePayload } from "../types";
 
 const Div = styled.div`
   display: flex;
@@ -21,7 +21,7 @@ const MessageEditor = ({ onSubmit = () => {}, envelope }: Props) => {
 
   useEffect(() => {
     const editedText = getLastMessageUpdate(envelope);
-    setValue(editedText || (envelope.message as StandardMessage).text);
+    setValue(editedText || (envelope.message as MessagePayload).text);
   }, [envelope?.message]);
   return (
     <Div>
