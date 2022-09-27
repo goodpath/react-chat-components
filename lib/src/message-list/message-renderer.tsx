@@ -1,7 +1,7 @@
 import { usePubNub } from "pubnub-react";
 import React, { memo } from "react";
 import { getLastMessageUpdate, getNameInitials, getPredefinedColor } from "../helpers";
-import { isFileMessage, MessageEnvelope } from "../types";
+import { isFilePayload, MessageEnvelope } from "../types";
 import { FileRenderer } from "./file-renderer";
 import { useAtom } from "jotai";
 import { UsersMetaAtom } from "../state-atoms";
@@ -38,10 +38,10 @@ export const MessageRenderer = memo(
     const time = getTime(envelope.timetoken as number);
     const date = getDate(envelope.timetoken as number);
     const isOwn = isOwnMessage(uuid);
-    const message = isFileMessage(envelope.message) ? envelope.message.message : envelope.message;
+    const message = isFilePayload(envelope.message) ? envelope.message.message : envelope.message;
     const user = message?.sender || getUser(uuid);
     const attachments = message?.attachments || [];
-    const file = isFileMessage(envelope.message) && envelope.message.file;
+    const file = isFilePayload(envelope.message) && envelope.message.file;
     const editedText = getLastMessageUpdate(envelope);
 
     if (
