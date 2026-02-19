@@ -1,6 +1,6 @@
 {
   "name": "@goodpath/react-chat-components",
-  "version": "0.10.6-beta.1",
+  "version": "0.10.6-beta.2",
   "description": "PubNub Chat Components is a development kit of React components that aims to help you to easily build Chat applications using PubNub infrastructure. It removes the complexicity of picking an adequate Chat engine, learning its APIs and dealing with its low-level internals. As the same time it allows you to create apps of various use cases, with different functionalities and customizable looks.",
   "author": "Goodpath",
   "main": "dist/index.js",
@@ -77,6 +77,7 @@
     "lodash.mergewith": "^4.6.2",
     "lodash.set": "^4.3.2",
     "react-icons": "^4.4.0",
+    "react-is": "^18.3.1",
     "styled-components": "^5.3.5"
   }
 }

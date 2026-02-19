@@ -51,8 +51,9 @@ export const MessageRenderer = memo(
     const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
     const trueSenderName = envelope.meta?.trueSenderName as string | undefined;
     const showTrueSender = trueSenderId && trueSenderId !== uuid;
+    const trueSenderUser = showTrueSender ? getUser(trueSenderId) : null;
     const trueSenderDisplay = showTrueSender
-      ? (trueSenderName || getUser(trueSenderId)?.name || trueSenderId)
+      ? (trueSenderName || trueSenderUser?.name || trueSenderId)
       : null;
     const file = isFilePayload(envelope.message) && envelope.message.file;
     const editedText = getLastMessageUpdate(envelope);
@@ -72,11 +73,26 @@ export const MessageRenderer = memo(
 
     return (
       <>
-        <div className="pn-msg__avatar" style={{ backgroundColor: getPredefinedColor(uuid) }}>
-          {user?.profileUrl ? (
-            <img src={user.profileUrl} alt="User avatar" />
-          ) : (
-            getNameInitials(user?.name || uuid)
+        <div className="pn-msg__avatar-wrapper">
+          <div className="pn-msg__avatar" style={{ backgroundColor: getPredefinedColor(uuid) }}>
+            {user?.profileUrl ? (
+              <img src={user.profileUrl} alt="User avatar" />
+            ) : (
+              getNameInitials(user?.name || uuid)
+            )}
+          </div>
+          {showTrueSender && (
+            <div
+              className="pn-msg__true-sender-badge"
+              style={{ backgroundColor: getPredefinedColor(trueSenderId) }}
+              title={`Sent by ${trueSenderDisplay}`}
+            >
+              {trueSenderUser?.profileUrl ? (
+                <img src={trueSenderUser.profileUrl} alt="True sender" />
+              ) : (
+                getNameInitials(trueSenderDisplay || trueSenderId)
+              )}
+            </div>
           )}
         </div>
         <div className="pn-msg__main">

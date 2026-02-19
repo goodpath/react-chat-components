@@ -183,14 +183,20 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
   const handleMessage = useCallback(
     (message: MessageEnvelope) => {
       try {
+        // Normalize: real-time messages have userMetadata, history has meta
+        const normalizedMessage = {
+          ...message,
+          meta: (message as any).userMetadata || message.meta,
+        };
+
         setMessages((messages) => {
           const messagesClone = cloneDeep(messages) || {};
-          messagesClone[message.channel] = messagesClone[message.channel] || [];
-          messagesClone[message.channel].push(message);
+          messagesClone[normalizedMessage.channel] = messagesClone[normalizedMessage.channel] || [];
+          messagesClone[normalizedMessage.channel].push(normalizedMessage);
           return messagesClone;
         });
 
-        if (onMessageProp) onMessageProp(message);
+        if (onMessageProp) onMessageProp(normalizedMessage);
       } catch (e) {
         onErrorProp(e);
       }
@@ -282,7 +288,13 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
       try {
         setMessages((messages) => {
           const { file, message, ...payload } = event;
-          const newMessage = { ...payload, message: { file, message }, messageType: 4 };
+          const newMessage = {
+            ...payload,
+            message: { file, message },
+            messageType: 4,
+            // Normalize: real-time file events have userMetadata, history has meta
+            meta: (event as any).userMetadata || (event as any).meta,
+          };
           const messagesClone = cloneDeep(messages) || {};
           messagesClone[newMessage.channel] = messagesClone[newMessage.channel] || [];
           messagesClone[newMessage.channel].push(newMessage);
