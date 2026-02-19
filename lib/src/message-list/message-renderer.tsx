@@ -98,9 +98,18 @@ export const MessageRenderer = memo(
         <div className="pn-msg__main">
           <div className="pn-msg__content">
             <div className="pn-msg__title">
-              <span className="pn-msg__author">
+              <span
+                className="pn-msg__author"
+                aria-label={
+                  trueSenderDisplay
+                    ? `Message sent by ${trueSenderDisplay} as ${user?.name || uuid}`
+                    : undefined
+                }
+              >
                 {user?.name || uuid}
-                {trueSenderDisplay && <span className="pn-msg__true-sender"> (sent by {trueSenderDisplay})</span>}
+                {trueSenderDisplay && (
+                  <span className="pn-msg__true-sender"> (sent by {trueSenderDisplay})</span>
+                )}
               </span>
               <span className="pn-msg__time">{messageListProps.enableDate ? date : time}</span>
             </div>
