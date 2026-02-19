@@ -27,8 +27,13 @@ export const MessageRenderer = memo(
     const pubnub = usePubNub();
     const [users] = useAtom(UsersMetaAtom);
 
-    const isOwnMessage = (uuid: string) => {
-      return pubnub.getUUID() === uuid;
+    const isOwnMessage = (envelope: MessageEnvelope) => {
+      const currentUuid = pubnub.getUUID();
+      const publisherUuid = envelope.uuid || envelope.publisher || "";
+      // Check if the message was sent by the current user, either directly
+      // or via a persona (trueSenderId in meta indicates the actual sender)
+      const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
+      return currentUuid === publisherUuid || currentUuid === trueSenderId;
     };
     const getUser = (uuid: string) => {
       return users.find((u) => u.id === uuid);
@@ -37,7 +42,7 @@ export const MessageRenderer = memo(
     const uuid = envelope.uuid || envelope.publisher || "";
     const time = getTime(envelope.timetoken as number);
     const date = getDate(envelope.timetoken as number);
-    const isOwn = isOwnMessage(uuid);
+    const isOwn = isOwnMessage(envelope);
     const message = isFilePayload(envelope.message) ? envelope.message.message : envelope.message;
     // Always look up user by UUID first. Only fall back to message.sender if:
     // 1. User not found in users array, AND

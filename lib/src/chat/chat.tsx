@@ -184,9 +184,12 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
     (message: MessageEnvelope) => {
       try {
         // Normalize: real-time messages have userMetadata, history has meta
+        const userMetadata = 'userMetadata' in message
+          ? (message as MessageEnvelope & { userMetadata?: MessageEnvelope['meta'] }).userMetadata
+          : undefined;
         const normalizedMessage = {
           ...message,
-          meta: (message as any).userMetadata || message.meta,
+          meta: userMetadata ?? message.meta,
         };
 
         setMessages((messages) => {
@@ -293,7 +296,8 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
             message: { file, message },
             messageType: 4,
             // Normalize: real-time file events have userMetadata, history has meta
-            meta: (event as any).userMetadata || (event as any).meta,
+            meta: ('userMetadata' in event ? (event as { userMetadata?: MessageEnvelope['meta'] }).userMetadata : undefined)
+              ?? ('meta' in event ? (event as { meta?: MessageEnvelope['meta'] }).meta : undefined),
           };
           const messagesClone = cloneDeep(messages) || {};
           messagesClone[newMessage.channel] = messagesClone[newMessage.channel] || [];
