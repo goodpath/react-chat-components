@@ -62,6 +62,10 @@ export interface MessageListProps {
   filter?: (message: MessageEnvelope) => boolean;
   /** Callback run on a list scroll. */
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
+  /** Optional callback to determine if the current user can edit a message. If not provided, defaults to checking if the user is the message owner. */
+  canEditMessage?: (envelope: MessageEnvelope) => boolean;
+  /** Optional callback to determine if the current user can delete a message. If not provided, defaults to checking if the user is the message owner. */
+  canDeleteMessage?: (envelope: MessageEnvelope) => boolean;
 }
 
 /**
@@ -134,8 +138,13 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     listMutObserver.current.observe(listRef.current, { childList: true });
   };
 
-  const isOwnMessage = (uuid: string) => {
-    return pubnub.getUUID() === uuid;
+  const isOwnMessage = (envelope: MessageEnvelope) => {
+    const currentUuid = pubnub.getUUID();
+    const publisherUuid = envelope.uuid || envelope.publisher || "";
+    // Check if the message was sent by the current user, either directly
+    // or via a persona (trueSenderId in meta indicates the actual sender)
+    const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
+    return currentUuid === publisherUuid || currentUuid === trueSenderId;
   };
 
   /*
@@ -318,7 +327,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         CurrentChannelPaginationAtom,
         !allMessages.length || newMessages.length !== props.fetchMessages
       );
-      if ('more' in response && response.more) {
+      if ('more' in response && (response as { more?: boolean }).more) {
         fetchMoreHistory();
       }
     }, [])
@@ -387,13 +396,15 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const Item = ({ envelope }: { envelope: MessageEnvelope }) => {
     const uuid = envelope.uuid || envelope.publisher || "";
-    const isOwn = isOwnMessage(uuid);
+    const isOwn = isOwnMessage(envelope);
     const currentUserClass = isOwn ? "pn-msg--own" : "";
     const actions = envelope.actions;
     const deleted = !!Object.keys(actions?.deleted || {}).length;
     const isFile = isFilePayload(envelope.message);
     const message = (isFile ? envelope.message.message : envelope.message) as MessagePayload;
-    const canEdit = isOwn && !isFile;
+    const canEditBase = props.canEditMessage ? props.canEditMessage(envelope) : isOwn;
+    const canEdit = canEditBase && !isFile;
+    const canDelete = props.canDeleteMessage ? props.canDeleteMessage(envelope) : isOwn;
     const [edit, setEdit] = React.useState(false);
 
     const onEditHandler = (value: string) => {
@@ -438,7 +449,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
           <MessageActions
             canEdit={canEdit}
             onEdit={() => setEdit(!edit)}
-            canDelete={isOwn}
+            canDelete={canDelete}
             onDelete={onDeleteHandler}
           />
         </div>
