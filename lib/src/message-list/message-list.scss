@@ -230,6 +230,13 @@
     padding: var(--msg__author__padding);
   }
 
+  &__true-sender {
+    color: var(--msg__time__color);
+    font-size: var(--msg__time__fontSize);
+    font-weight: var(--msg__time__fontWeight);
+    font-style: italic;
+  }
+
   &__time {
     display: var(--msg__time__display);
     color: var(--msg__time__color);

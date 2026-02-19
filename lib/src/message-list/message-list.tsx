@@ -151,6 +151,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
           channels: [channel],
           count: props.fetchMessages,
           includeMessageActions: true,
+          includeMeta: true,
         })
       );
       handleHistoryFetch(history);
@@ -183,6 +184,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
             count: props.fetchMessages,
             start: (messages?.[0].timetoken as number) || undefined,
             includeMessageActions: true,
+            includeMeta: true,
           })
         );
         handleHistoryFetch(history);
@@ -316,7 +318,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         CurrentChannelPaginationAtom,
         !allMessages.length || newMessages.length !== props.fetchMessages
       );
-      if (response.more) {
+      if ((response as any).more) {
         fetchMoreHistory();
       }
     }, [])

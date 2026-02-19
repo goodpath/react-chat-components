@@ -39,8 +39,21 @@ export const MessageRenderer = memo(
     const date = getDate(envelope.timetoken as number);
     const isOwn = isOwnMessage(uuid);
     const message = isFilePayload(envelope.message) ? envelope.message.message : envelope.message;
-    const user = message?.sender || getUser(uuid);
+    // Always look up user by UUID first. Only fall back to message.sender if:
+    // 1. User not found in users array, AND
+    // 2. message.sender is a proper user object (has name property), not just a string UUID
+    const lookupUser = getUser(uuid);
+    const senderIsUserObject = message?.sender && typeof message.sender === "object" && "name" in message.sender;
+    const user = lookupUser || (senderIsUserObject ? message.sender : undefined);
     const attachments = message?.attachments || [];
+
+    // Check for true sender (when message was sent as a persona)
+    const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
+    const trueSenderName = envelope.meta?.trueSenderName as string | undefined;
+    const showTrueSender = trueSenderId && trueSenderId !== uuid;
+    const trueSenderDisplay = showTrueSender
+      ? (trueSenderName || getUser(trueSenderId)?.name || trueSenderId)
+      : null;
     const file = isFilePayload(envelope.message) && envelope.message.file;
     const editedText = getLastMessageUpdate(envelope);
 
@@ -69,7 +82,10 @@ export const MessageRenderer = memo(
         <div className="pn-msg__main">
           <div className="pn-msg__content">
             <div className="pn-msg__title">
-              <span className="pn-msg__author">{user?.name || uuid}</span>
+              <span className="pn-msg__author">
+                {user?.name || uuid}
+                {trueSenderDisplay && <span className="pn-msg__true-sender"> (sent by {trueSenderDisplay})</span>}
+              </span>
               <span className="pn-msg__time">{messageListProps.enableDate ? date : time}</span>
             </div>
             {message?.text &&
