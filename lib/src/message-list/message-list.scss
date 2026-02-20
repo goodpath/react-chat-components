@@ -135,6 +135,32 @@
     width: 100%;
   }
 
+  &__unread-divider {
+    align-items: center;
+    display: flex;
+    margin: 8px 16px;
+
+    &--hidden {
+      display: none;
+    }
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 2px;
+      background: var(--chat--light__color--3, #c0392b);
+    }
+
+    span {
+      color: var(--chat--light__color--3, #c0392b);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 0 12px;
+      text-transform: uppercase;
+    }
+  }
+
   &__spacer {
     flex: 1 1 auto;
   }
@@ -165,6 +191,14 @@
     .pn-msg__actions {
       display: flex;
     }
+  }
+
+  &--unread {
+    background: var(--msg--unread__background, rgba(231, 76, 60, 0.08));
+  }
+
+  &--unread:hover {
+    background: var(--msg--unread-hover__background, rgba(231, 76, 60, 0.12));
   }
 
   &__actions {

@@ -66,6 +66,8 @@ export interface MessageListProps {
   canEditMessage?: (envelope: MessageEnvelope) => boolean;
   /** Optional callback to determine if the current user can delete a message. If not provided, defaults to checking if the user is the message owner. */
   canDeleteMessage?: (envelope: MessageEnvelope) => boolean;
+  /** Timetoken from which messages should be visually marked as unread. Shows a divider line and highlights messages at or after this timetoken. */
+  unreadFromTimetoken?: string | number;
 }
 
 /**
@@ -118,9 +120,10 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   */
 
   const scrollToBottom = useCallback(() => {
-    if (!endRef.current) return;
+    if (!listRef.current) return;
     setScrolledBottom(true);
-    endRef.current.scrollIntoView({ block: "end" });
+    // Use scrollTop = scrollHeight for more reliable scrolling to bottom
+    listRef.current.scrollTop = listRef.current.scrollHeight;
   }, []);
 
   const setupSpinnerObserver = () => {
@@ -327,7 +330,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         CurrentChannelPaginationAtom,
         !allMessages.length || newMessages.length !== props.fetchMessages
       );
-      if ('more' in response && (response as { more?: boolean }).more) {
+      if ("more" in response && (response as { more?: boolean }).more) {
         fetchMoreHistory();
       }
     }, [])
@@ -394,10 +397,19 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     );
   };
 
-  const Item = ({ envelope }: { envelope: MessageEnvelope }) => {
+  const Item = ({
+    envelope,
+    isUnread,
+    isFirstUnread,
+  }: {
+    envelope: MessageEnvelope;
+    isUnread?: boolean;
+    isFirstUnread?: boolean;
+  }) => {
     const uuid = envelope.uuid || envelope.publisher || "";
     const isOwn = isOwnMessage(envelope);
     const currentUserClass = isOwn ? "pn-msg--own" : "";
+    const unreadClass = isUnread ? "pn-msg--unread" : "";
     const actions = envelope.actions;
     const deleted = !!Object.keys(actions?.deleted || {}).length;
     const isFile = isFilePayload(envelope.message);
@@ -419,41 +431,51 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if (deleted) return null;
 
     return (
-      <div className={`pn-msg ${currentUserClass}`} key={envelope.timetoken}>
-        {edit ? (
-          <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
-        ) : (
-          <MessageRenderer
-            envelope={envelope}
-            messageListProps={props}
-            scrollToBottom={scrollToBottom}
-            scrolledBottom={scrolledBottom}
-            renderReactions={renderReactions}
-          />
-        )}
-        <div className="pn-msg__actions">
-          {props.extraActionsRenderer && props.extraActionsRenderer(envelope)}
-          {props.reactionsPicker && message?.type !== "welcome" && (
-            <div
-              className="pn-msg__reactions-toggle"
-              title="Add a reaction"
-              onClick={(e) => {
-                emojiPickerShown && reactingToMessage === envelope.timetoken
-                  ? setEmojiPickerShown(false)
-                  : handleOpenReactions(e, envelope.timetoken);
-              }}
-            >
-              <EmojiIcon />
-            </div>
-          )}
-          <MessageActions
-            canEdit={canEdit}
-            onEdit={() => setEdit(!edit)}
-            canDelete={canDelete}
-            onDelete={onDeleteHandler}
-          />
+      <>
+        {/* Always render divider but hide with CSS to avoid DOM mutations that trigger scroll */}
+        <div
+          className={`pn-msg-list__unread-divider ${
+            isFirstUnread ? "" : "pn-msg-list__unread-divider--hidden"
+          }`}
+        >
+          <span>New messages</span>
         </div>
-      </div>
+        <div className={`pn-msg ${currentUserClass} ${unreadClass}`} key={envelope.timetoken}>
+          {edit ? (
+            <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
+          ) : (
+            <MessageRenderer
+              envelope={envelope}
+              messageListProps={props}
+              scrollToBottom={scrollToBottom}
+              scrolledBottom={scrolledBottom}
+              renderReactions={renderReactions}
+            />
+          )}
+          <div className="pn-msg__actions">
+            {props.extraActionsRenderer && props.extraActionsRenderer(envelope)}
+            {props.reactionsPicker && message?.type !== "welcome" && (
+              <div
+                className="pn-msg__reactions-toggle"
+                title="Add a reaction"
+                onClick={(e) => {
+                  emojiPickerShown && reactingToMessage === envelope.timetoken
+                    ? setEmojiPickerShown(false)
+                    : handleOpenReactions(e, envelope.timetoken);
+                }}
+              >
+                <EmojiIcon />
+              </div>
+            )}
+            <MessageActions
+              canEdit={canEdit}
+              onEdit={() => setEdit(!edit)}
+              canDelete={canDelete}
+              onDelete={onDeleteHandler}
+            />
+          </div>
+        </div>
+      </>
     );
   };
 
@@ -520,8 +542,45 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         {(!props.fetchMessages || (!fetchingMessages && !messages.length)) &&
           renderWelcomeMessages()}
         {messages &&
-          messages.map((m) => {
-            return <Item key={m.timetoken} envelope={m} />;
+          messages.map((m, index) => {
+            // Use BigInt for accurate comparison of large timetokens
+            let isUnread = false;
+            let isFirstUnread = false;
+            if (props.unreadFromTimetoken) {
+              try {
+                const unreadFromTT = BigInt(props.unreadFromTimetoken);
+                const msgTT = BigInt(m.timetoken);
+                isUnread = msgTT >= unreadFromTT;
+
+                if (isUnread && index > 0) {
+                  const prevMsg = messages[index - 1];
+                  const prevMsgTT = BigInt(prevMsg.timetoken);
+                  const isPrevUnread = prevMsgTT >= unreadFromTT;
+                  isFirstUnread = !isPrevUnread;
+                } else if (isUnread) {
+                  isFirstUnread = true;
+                }
+              } catch {
+                // Fallback to string comparison if BigInt fails
+                const unreadFromTT = String(props.unreadFromTimetoken);
+                const msgTT = String(m.timetoken);
+                isUnread = msgTT >= unreadFromTT;
+                if (isUnread && index > 0) {
+                  const prevMsgTT = String(messages[index - 1].timetoken);
+                  isFirstUnread = !(prevMsgTT >= unreadFromTT);
+                } else if (isUnread) {
+                  isFirstUnread = true;
+                }
+              }
+            }
+            return (
+              <Item
+                key={m.timetoken}
+                envelope={m}
+                isUnread={isUnread}
+                isFirstUnread={isFirstUnread}
+              />
+            );
           })}
 
         {props.children}
