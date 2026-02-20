@@ -4,6 +4,7 @@ import React, {
   useRef,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   ReactNode,
   ReactElement,
@@ -91,6 +92,8 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   const retry = retryObj.function;
   const onError = onErrorObj.function;
 
+  // State is used to trigger re-renders; ref is used in callbacks to avoid stale closures
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [scrolledBottom, setScrolledBottom] = useState(true);
   const [prevMessages, setPrevMessages] = useState([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -106,14 +109,24 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if ((event.target as Element).closest(".pn-msg__reactions-toggle")) return;
     setEmojiPickerShown(false);
   });
-  const listSizeObserver = useRef(new ResizeObserver(() => handleListMutations()));
-  const listMutObserver = useRef(new MutationObserver(() => handleListMutations()));
-  const spinnerIntObserver = useRef(
-    new IntersectionObserver((e) => e[0].isIntersecting === true && fetchMoreHistory())
-  );
-  const bottomIntObserver = useRef(
-    new IntersectionObserver((e) => handleBottomIntersection(e[0].isIntersecting))
-  );
+  // Track whether we need initial scroll (set to false after first scroll)
+  const needsInitialScroll = useRef(true);
+  // Track scrolledBottom in a ref for use in callbacks without stale closure issues
+  const scrolledBottomRef = useRef(true);
+  // Track previous unreadFromTimetoken to detect changes
+  const prevUnreadFromTimetokenRef = useRef(props.unreadFromTimetoken);
+  // Store scroll anchor info to restore after unread state changes
+  // We save which message was at the top of the viewport and its offset
+  const savedScrollAnchorRef = useRef<{ timetoken: string; offsetFromTop: number } | null>(null);
+  // Flag to temporarily ignore intersection observer during scroll restore
+  const isRestoringScrollRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const listSizeObserver = useRef(new ResizeObserver(() => {}));
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const listMutObserver = useRef(new MutationObserver(() => {}));
+  // IntersectionObservers will be initialized in setupObservers with proper root
+  const spinnerIntObserver = useRef<IntersectionObserver | null>(null);
+  const bottomIntObserver = useRef<IntersectionObserver | null>(null);
 
   /*
   /* Helper functions
@@ -121,21 +134,40 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const scrollToBottom = useCallback(() => {
     if (!listRef.current) return;
+    scrolledBottomRef.current = true;
     setScrolledBottom(true);
-    // Use double requestAnimationFrame to ensure scroll happens after paint completes
-    // This is necessary because React may batch DOM updates
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (listRef.current) {
-          listRef.current.scrollTop = listRef.current.scrollHeight;
-        }
-      });
+      // Use scrollIntoView for better compatibility with Dialog containers
+      if (endRef.current) {
+        endRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+      // Also set scrollTop as fallback
+      if (listRef.current) {
+        listRef.current.scrollTop = listRef.current.scrollHeight;
+      }
     });
   }, []);
 
   const setupSpinnerObserver = () => {
-    if (!spinnerRef.current) return;
+    if (!spinnerRef.current || !listRef.current) return;
+    spinnerIntObserver.current?.disconnect();
+    // Use listRef as root so observer works correctly inside Dialog containers
+    spinnerIntObserver.current = new IntersectionObserver(
+      (e) => e[0].isIntersecting === true && fetchMoreHistory(),
+      { root: listRef.current }
+    );
     spinnerIntObserver.current.observe(spinnerRef.current);
+  };
+
+  const setupBottomObserver = () => {
+    if (!endRef.current || !listRef.current) return;
+    bottomIntObserver.current?.disconnect();
+    // Use listRef as root so observer works correctly inside Dialog containers
+    bottomIntObserver.current = new IntersectionObserver(
+      (e) => handleBottomIntersection(e[0].isIntersecting),
+      { root: listRef.current }
+    );
+    bottomIntObserver.current.observe(endRef.current);
   };
 
   const setupListObservers = () => {
@@ -146,6 +178,9 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
     listMutObserver.current.disconnect();
     listMutObserver.current.observe(listRef.current, { childList: true });
+
+    // Set up bottom observer to track scroll position
+    setupBottomObserver();
   };
 
   const isOwnMessage = (envelope: MessageEnvelope) => {
@@ -304,16 +339,11 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const handleBottomIntersection = (isIntersecting: boolean) => {
     try {
+      // Ignore intersection events while restoring scroll position
+      if (isRestoringScrollRef.current) return;
       if (isIntersecting) setUnreadMessages(0);
+      scrolledBottomRef.current = isIntersecting;
       setScrolledBottom(isIntersecting);
-    } catch (e) {
-      onError(e);
-    }
-  };
-
-  const handleListMutations = () => {
-    try {
-      scrolledBottom && scrollToBottom();
     } catch (e) {
       onError(e);
     }
@@ -327,7 +357,12 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         ((response?.channels[channel] || []).map((m) =>
           m.messageType === 4 ? fetchFileUrl(m) : m
         ) as MessageEnvelope[]) || [];
-      const allMessages = [...messages, ...newMessages].sort(
+      // Deduplicate by timetoken to prevent duplicate messages
+      const existingTimetokens = new Set(messages.map((m) => String(m.timetoken)));
+      const uniqueNewMessages = newMessages.filter(
+        (m) => !existingTimetokens.has(String(m.timetoken))
+      );
+      const allMessages = [...messages, ...uniqueNewMessages].sort(
         (a, b) => (a.timetoken as number) - (b.timetoken as number)
       );
       setEmojiPickerShown(false);
@@ -368,9 +403,11 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   useEffect(() => {
     if (!pubnub || !channel) return;
+    needsInitialScroll.current = true; // Reset for new channel
     if (!messages?.length) fetchHistory();
     setupSpinnerObserver();
     setupListObservers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
 
   useEffect(() => {
@@ -382,14 +419,79 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   useEffect(() => {
     if (!messages?.length) return;
 
-    const messagesFromListener = messages.length - prevMessages.length;
+    const newMessageCount = messages.length - prevMessages.length;
+    const newestMessage = messages[messages.length - 1];
+    const isNewestOwn = newestMessage && isOwnMessage(newestMessage);
 
-    if (scrolledBottom) scrollToBottom();
-    if (!scrolledBottom && messagesFromListener)
-      setUnreadMessages(unreadMessages + messagesFromListener);
+    // Scroll to bottom when:
+    // 1. Initial load (needsInitialScroll)
+    // 2. User sent a message (always scroll for own messages)
+    // 3. New message arrived and user is at bottom
+    if (
+      needsInitialScroll.current ||
+      isNewestOwn ||
+      (scrolledBottomRef.current && newMessageCount > 0)
+    ) {
+      needsInitialScroll.current = false;
+      scrollToBottom();
+    } else if (newMessageCount > 0) {
+      setUnreadMessages((prev) => prev + newMessageCount);
+    }
 
     setPrevMessages(messages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
+
+  // Preserve scroll position when unreadFromTimetoken changes (marking read/unread)
+  // Use useLayoutEffect to restore scroll position after layout changes
+  useLayoutEffect(() => {
+    // Restore scroll to the same message that was visible before the change
+    if (savedScrollAnchorRef.current !== null && listRef.current) {
+      isRestoringScrollRef.current = true;
+      const { timetoken, offsetFromTop } = savedScrollAnchorRef.current;
+      const messageEl = listRef.current.querySelector(`[data-timetoken="${timetoken}"]`);
+      if (messageEl) {
+        const messageRect = messageEl.getBoundingClientRect();
+        const listRect = listRef.current.getBoundingClientRect();
+        const currentOffset = messageRect.top - listRect.top;
+        const scrollAdjustment = currentOffset - offsetFromTop;
+        listRef.current.scrollTop += scrollAdjustment;
+      }
+      // Clear after a frame to allow normal scroll behavior to resume
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          savedScrollAnchorRef.current = null;
+          isRestoringScrollRef.current = false;
+        });
+      });
+    }
+  });
+
+  // Save scroll anchor when unreadFromTimetoken is about to change
+  // This runs during render, before useLayoutEffect
+  if (props.unreadFromTimetoken !== prevUnreadFromTimetokenRef.current) {
+    if (listRef.current && savedScrollAnchorRef.current === null) {
+      // Find the first message element that is visible in the viewport
+      const listRect = listRef.current.getBoundingClientRect();
+      const messageEls = Array.from(listRef.current.querySelectorAll("[data-timetoken]"));
+      for (let i = 0; i < messageEls.length; i++) {
+        const el = messageEls[i];
+        const rect = el.getBoundingClientRect();
+        // Check if this message is at least partially visible
+        if (rect.bottom > listRect.top && rect.top < listRect.bottom) {
+          const timetoken = el.getAttribute("data-timetoken");
+          if (timetoken) {
+            savedScrollAnchorRef.current = {
+              timetoken,
+              offsetFromTop: rect.top - listRect.top,
+            };
+            break;
+          }
+        }
+      }
+    }
+    prevUnreadFromTimetokenRef.current = props.unreadFromTimetoken;
+  }
 
   /*
   /* Renderers
@@ -413,7 +515,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     isUnread?: boolean;
     isFirstUnread?: boolean;
   }) => {
-    const uuid = envelope.uuid || envelope.publisher || "";
     const isOwn = isOwnMessage(envelope);
     const currentUserClass = isOwn ? "pn-msg--own" : "";
     const unreadClass = isUnread ? "pn-msg--unread" : "";
@@ -447,15 +548,17 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         >
           <span>New messages</span>
         </div>
-        <div className={`pn-msg ${currentUserClass} ${unreadClass}`} key={envelope.timetoken}>
+        <div
+          className={`pn-msg ${currentUserClass} ${unreadClass}`}
+          key={envelope.timetoken}
+          data-timetoken={String(envelope.timetoken)}
+        >
           {edit ? (
             <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
           ) : (
             <MessageRenderer
               envelope={envelope}
               messageListProps={props}
-              scrollToBottom={scrollToBottom}
-              scrolledBottom={scrolledBottom}
               renderReactions={renderReactions}
             />
           )}

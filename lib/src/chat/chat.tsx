@@ -184,9 +184,10 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
     (message: MessageEnvelope) => {
       try {
         // Normalize: real-time messages have userMetadata, history has meta
-        const userMetadata = 'userMetadata' in message
-          ? (message as MessageEnvelope & { userMetadata?: MessageEnvelope['meta'] }).userMetadata
-          : undefined;
+        const userMetadata =
+          "userMetadata" in message
+            ? (message as MessageEnvelope & { userMetadata?: MessageEnvelope["meta"] }).userMetadata
+            : undefined;
         const normalizedMessage = {
           ...message,
           meta: userMetadata ?? message.meta,
@@ -195,6 +196,13 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
         setMessages((messages) => {
           const messagesClone = cloneDeep(messages) || {};
           messagesClone[normalizedMessage.channel] = messagesClone[normalizedMessage.channel] || [];
+          // Check for duplicate by timetoken before adding
+          const existingTimetokens = new Set(
+            messagesClone[normalizedMessage.channel].map((m) => String(m.timetoken))
+          );
+          if (existingTimetokens.has(String(normalizedMessage.timetoken))) {
+            return messages; // Skip duplicate
+          }
           messagesClone[normalizedMessage.channel].push(normalizedMessage);
           return messagesClone;
         });
@@ -296,11 +304,21 @@ export const ChatInternal: FC<ChatProps> = (props: ChatProps) => {
             message: { file, message },
             messageType: 4,
             // Normalize: real-time file events have userMetadata, history has meta
-            meta: ('userMetadata' in event ? (event as { userMetadata?: MessageEnvelope['meta'] }).userMetadata : undefined)
-              ?? ('meta' in event ? (event as { meta?: MessageEnvelope['meta'] }).meta : undefined),
+            meta:
+              ("userMetadata" in event
+                ? (event as { userMetadata?: MessageEnvelope["meta"] }).userMetadata
+                : undefined) ??
+              ("meta" in event ? (event as { meta?: MessageEnvelope["meta"] }).meta : undefined),
           };
           const messagesClone = cloneDeep(messages) || {};
           messagesClone[newMessage.channel] = messagesClone[newMessage.channel] || [];
+          // Check for duplicate by timetoken before adding
+          const existingTimetokens = new Set(
+            messagesClone[newMessage.channel].map((m) => String(m.timetoken))
+          );
+          if (existingTimetokens.has(String(newMessage.timetoken))) {
+            return messages; // Skip duplicate
+          }
           messagesClone[newMessage.channel].push(newMessage);
           return messagesClone;
         });
