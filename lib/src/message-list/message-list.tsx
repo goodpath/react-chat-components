@@ -122,8 +122,15 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   const scrollToBottom = useCallback(() => {
     if (!listRef.current) return;
     setScrolledBottom(true);
-    // Use scrollTop = scrollHeight for more reliable scrolling to bottom
-    listRef.current.scrollTop = listRef.current.scrollHeight;
+    // Use double requestAnimationFrame to ensure scroll happens after paint completes
+    // This is necessary because React may batch DOM updates
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (listRef.current) {
+          listRef.current.scrollTop = listRef.current.scrollHeight;
+        }
+      });
+    });
   }, []);
 
   const setupSpinnerObserver = () => {
