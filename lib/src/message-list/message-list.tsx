@@ -561,12 +561,12 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
                   isFirstUnread = true;
                 }
               } catch {
-                // Fallback to string comparison if BigInt fails
-                const unreadFromTT = String(props.unreadFromTimetoken);
-                const msgTT = String(m.timetoken);
+                // Fallback to Number comparison if BigInt fails
+                const unreadFromTT = Number(props.unreadFromTimetoken);
+                const msgTT = Number(m.timetoken);
                 isUnread = msgTT >= unreadFromTT;
                 if (isUnread && index > 0) {
-                  const prevMsgTT = String(messages[index - 1].timetoken);
+                  const prevMsgTT = Number(messages[index - 1].timetoken);
                   isFirstUnread = !(prevMsgTT >= unreadFromTT);
                 } else if (isUnread) {
                   isFirstUnread = true;

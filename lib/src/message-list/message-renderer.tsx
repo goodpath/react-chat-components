@@ -27,13 +27,12 @@ export const MessageRenderer = memo(
     const pubnub = usePubNub();
     const [users] = useAtom(UsersMetaAtom);
 
-    const isOwnMessage = (envelope: MessageEnvelope) => {
+    const isOwnMessage = (envelope: MessageEnvelope, trueSenderIdParam?: string) => {
       const currentUuid = pubnub.getUUID();
       const publisherUuid = envelope.uuid || envelope.publisher || "";
       // Check if the message was sent by the current user, either directly
       // or via a persona (trueSenderId in meta indicates the actual sender)
-      const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
-      return currentUuid === publisherUuid || currentUuid === trueSenderId;
+      return currentUuid === publisherUuid || currentUuid === trueSenderIdParam;
     };
     const getUser = (uuid: string) => {
       return users.find((u) => u.id === uuid);
@@ -42,23 +41,26 @@ export const MessageRenderer = memo(
     const uuid = envelope.uuid || envelope.publisher || "";
     const time = getTime(envelope.timetoken as number);
     const date = getDate(envelope.timetoken as number);
-    const isOwn = isOwnMessage(envelope);
+    // Extract trueSenderId once and pass to isOwnMessage to avoid duplicate extraction
+    const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
+    const isOwn = isOwnMessage(envelope, trueSenderId);
     const message = isFilePayload(envelope.message) ? envelope.message.message : envelope.message;
     // Always look up user by UUID first. Only fall back to message.sender if:
     // 1. User not found in users array, AND
     // 2. message.sender is a proper user object (has name property), not just a string UUID
     const lookupUser = getUser(uuid);
-    const senderIsUserObject = message?.sender && typeof message.sender === "object" && "name" in message.sender;
+    const senderIsUserObject =
+      message?.sender && typeof message.sender === "object" && "name" in message.sender;
     const user = lookupUser || (senderIsUserObject ? message.sender : undefined);
     const attachments = message?.attachments || [];
 
     // Check for true sender (when message was sent as a persona)
-    const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
+    // Note: trueSenderId is already extracted above for isOwnMessage check
     const trueSenderName = envelope.meta?.trueSenderName as string | undefined;
     const showTrueSender = trueSenderId && trueSenderId !== uuid;
     const trueSenderUser = showTrueSender ? getUser(trueSenderId) : null;
     const trueSenderDisplay = showTrueSender
-      ? (trueSenderName || trueSenderUser?.name || trueSenderId)
+      ? trueSenderName || trueSenderUser?.name || trueSenderId
       : null;
     const file = isFilePayload(envelope.message) && envelope.message.file;
     const editedText = getLastMessageUpdate(envelope);
@@ -91,6 +93,7 @@ export const MessageRenderer = memo(
               className="pn-msg__true-sender-badge"
               style={{ backgroundColor: getPredefinedColor(trueSenderId) }}
               title={`Sent by ${trueSenderDisplay}`}
+              aria-label={`Sent by ${trueSenderDisplay}`}
             >
               {trueSenderUser?.profileUrl ? (
                 <img src={trueSenderUser.profileUrl} alt="True sender" />
@@ -151,6 +154,8 @@ export const MessageRenderer = memo(
     );
   }
 );
+
+MessageRenderer.displayName = "MessageRenderer";
 
 type Props = {
   envelope: MessageEnvelope;
