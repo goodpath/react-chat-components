@@ -1,6 +1,7 @@
 {
   "name": "@goodpath/react-chat-components-monorepo",
   "version": "1.0.2",
+  "private": true,
   "description": "This monorepository uses npm v7 workspaces feature to crosslink dependencies between components library and sample applications.",
   "main": "index.js",
   "workspaces": [

@@ -1,6 +1,7 @@
 import React from "react";
 import PubNub from "pubnub";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react-hooks";
+import { waitFor } from "@testing-library/react";
 import { PubNubProvider } from "pubnub-react";
 
 import { useChannelMembers } from "../../src/hooks";
@@ -8,7 +9,9 @@ import { PubNubMock } from "../../mock/pubnub-mock";
 import users from "../../../data/users/users.json";
 
 const pubnub = PubNubMock({}) as PubNub;
-const wrapper = ({ children }) => <PubNubProvider client={pubnub}>{children}</PubNubProvider>;
+const wrapper = ({ children }: { children?: React.ReactNode }) => (
+  <PubNubProvider client={pubnub}>{children}</PubNubProvider>
+);
 
 describe("useChannelMembers", () => {
   test("fetches and returns the full list of memberships", async () => {

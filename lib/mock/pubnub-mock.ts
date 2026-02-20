@@ -179,15 +179,55 @@ export function PubNubMock(options: PubNubMockOptions = {}): Partial<PubNub> & {
   // }),
   // };
 
+  const removeListener = () => true;
+
+  const objects = {
+    getAllUUIDMetadata: () =>
+      new Promise((resolve) => {
+        resolve({
+          data: users,
+          totalCount: users.length,
+        });
+      }),
+    getAllChannelMetadata: () =>
+      new Promise((resolve) => {
+        resolve({
+          data: channels,
+          totalCount: channels.length,
+        });
+      }),
+    getChannelMembers: () =>
+      new Promise((resolve) => {
+        resolve({
+          data: users.map((u) => ({ uuid: u })),
+          totalCount: users.length,
+        });
+      }),
+    getMemberships: () =>
+      new Promise((resolve) => {
+        resolve({
+          data: channels.map((c) => ({ channel: c })),
+          totalCount: channels.length,
+        });
+      }),
+    getUUIDMetadata: (args) =>
+      new Promise((resolve) => {
+        const user = users.find((u) => u.id === args.uuid);
+        resolve({ data: user || null });
+      }),
+  };
+
   return {
     addMessageAction,
     addListener,
+    removeListener,
     fetchMessages,
     getFileUrl,
     getUUID,
     getSubscribedChannels,
     getSubscribedChannelGroups,
     hereNow,
+    objects,
     publish,
     removeMessageAction,
     signal,

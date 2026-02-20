@@ -55,8 +55,8 @@ export interface MessageInputProps {
   onSend?: (value: MessagePayload | File) => void;
   /** Option to provide an extra actions renderer to add custom action buttons to the input. */
   extraActionsRenderer?: () => JSX.Element;
-  /** Option to provide rows numer in message input **/
-  rows: number;
+  /** Option to provide rows number in message input **/
+  rows?: number;
 }
 
 /**
