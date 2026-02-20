@@ -244,4 +244,63 @@ describe("Message List", () => {
 
     expect(screen.queryByText("Original text")).not.toBeInTheDocument();
   });
+
+  /** Persona / trueSenderId tests */
+
+  describe("Persona messages (trueSenderId)", () => {
+    test("applies own message styling when trueSenderId matches current user", async () => {
+      // Message published as "coaching-team@goodpath" but trueSenderId is the current user
+      const message = {
+        message: { type: "text", text: "Message from persona" },
+        timetoken: "16165851271766362",
+        uuid: "coaching-team@goodpath",
+        publisher: "coaching-team@goodpath",
+        meta: {
+          trueSenderId: "user_63ea15931d8541a3bd35e5b1f09087dc", // matches mock PubNub UUID
+          trueSenderName: "John Doe",
+        },
+      };
+
+      render(<MessageList welcomeMessages={message} />);
+
+      const messageElement = await screen.findByText("Message from persona");
+      // The message should have the "pn-msg--own" class
+      expect(messageElement.closest(".pn-msg")).toHaveClass("pn-msg--own");
+    });
+
+    test("does not apply own message styling when trueSenderId does not match current user", async () => {
+      // Message published as "coaching-team@goodpath" with trueSenderId from different user
+      const message = {
+        message: { type: "text", text: "Message from other user" },
+        timetoken: "16165851271766362",
+        uuid: "coaching-team@goodpath",
+        publisher: "coaching-team@goodpath",
+        meta: {
+          trueSenderId: "other_user_uuid",
+          trueSenderName: "Jane Smith",
+        },
+      };
+
+      render(<MessageList welcomeMessages={message} />);
+
+      const messageElement = await screen.findByText("Message from other user");
+      // The message should NOT have the "pn-msg--own" class
+      expect(messageElement.closest(".pn-msg")).not.toHaveClass("pn-msg--own");
+    });
+
+    test("applies own message styling when publisher matches current user (no trueSenderId)", async () => {
+      // Standard message without persona (legacy behavior)
+      const message = {
+        message: { type: "text", text: "Direct message" },
+        timetoken: "16165851271766362",
+        uuid: "user_63ea15931d8541a3bd35e5b1f09087dc",
+        publisher: "user_63ea15931d8541a3bd35e5b1f09087dc",
+      };
+
+      render(<MessageList welcomeMessages={message} />);
+
+      const messageElement = await screen.findByText("Direct message");
+      expect(messageElement.closest(".pn-msg")).toHaveClass("pn-msg--own");
+    });
+  });
 });
