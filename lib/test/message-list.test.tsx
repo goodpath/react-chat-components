@@ -251,7 +251,7 @@ describe("Message List", () => {
     expect(screen.queryByText("Original text")).not.toBeInTheDocument();
   });
 
-  test("renders message text edits", async () => {
+  test("renders message deletions", async () => {
     const message = {
       message: { id: "msg-edit-2", type: "text", text: "Original text" },
       timetoken: "16165851271766362",

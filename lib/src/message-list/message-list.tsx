@@ -651,33 +651,41 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
         {(!props.fetchMessages || (!fetchingMessages && !messages.length)) &&
           renderWelcomeMessages()}
-        {messages &&
-          messages.map((m, index) => {
-            // Use BigInt for accurate comparison of large timetokens
+        {(() => {
+          // Convert unreadFromTimetoken once before the loop for performance
+          let unreadFromTTBigInt: bigint | null = null;
+          let unreadFromTTNumber: number | null = null;
+          let useBigInt = true;
+          if (props.unreadFromTimetoken) {
+            try {
+              unreadFromTTBigInt = BigInt(props.unreadFromTimetoken);
+            } catch {
+              // Fallback to Number if BigInt conversion fails
+              useBigInt = false;
+              unreadFromTTNumber = Number(props.unreadFromTimetoken);
+            }
+          }
+
+          return messages?.map((m, index) => {
             let isUnread = false;
             let isFirstUnread = false;
             if (props.unreadFromTimetoken) {
-              try {
-                const unreadFromTT = BigInt(props.unreadFromTimetoken);
+              if (useBigInt && unreadFromTTBigInt !== null) {
                 const msgTT = BigInt(m.timetoken);
-                isUnread = msgTT >= unreadFromTT;
+                isUnread = msgTT >= unreadFromTTBigInt;
 
                 if (isUnread && index > 0) {
-                  const prevMsg = messages[index - 1];
-                  const prevMsgTT = BigInt(prevMsg.timetoken);
-                  const isPrevUnread = prevMsgTT >= unreadFromTT;
-                  isFirstUnread = !isPrevUnread;
+                  const prevMsgTT = BigInt(messages[index - 1].timetoken);
+                  isFirstUnread = !(prevMsgTT >= unreadFromTTBigInt);
                 } else if (isUnread) {
                   isFirstUnread = true;
                 }
-              } catch {
-                // Fallback to Number comparison if BigInt fails
-                const unreadFromTT = Number(props.unreadFromTimetoken);
+              } else if (unreadFromTTNumber !== null) {
                 const msgTT = Number(m.timetoken);
-                isUnread = msgTT >= unreadFromTT;
+                isUnread = msgTT >= unreadFromTTNumber;
                 if (isUnread && index > 0) {
                   const prevMsgTT = Number(messages[index - 1].timetoken);
-                  isFirstUnread = !(prevMsgTT >= unreadFromTT);
+                  isFirstUnread = !(prevMsgTT >= unreadFromTTNumber);
                 } else if (isUnread) {
                   isFirstUnread = true;
                 }
@@ -691,7 +699,8 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
                 isFirstUnread={isFirstUnread}
               />
             );
-          })}
+          });
+        })()}
 
         {props.children}
 
