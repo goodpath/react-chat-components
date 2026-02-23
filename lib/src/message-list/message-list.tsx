@@ -92,9 +92,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   const retry = retryObj.function;
   const onError = onErrorObj.function;
 
-  // State is used to trigger re-renders; ref is used in callbacks to avoid stale closures
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [scrolledBottom, setScrolledBottom] = useState(true);
   const [prevMessages, setPrevMessages] = useState([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [fetchingMessages, setFetchingMessages] = useState(false);
@@ -144,7 +141,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   const scrollToBottom = useCallback(() => {
     if (!listRef.current) return;
     scrolledBottomRef.current = true;
-    setScrolledBottom(true);
 
     const doScroll = () => {
       // Use scrollIntoView for better compatibility with Dialog containers
@@ -367,7 +363,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
       if (isRestoringScrollRef.current) return;
       if (isIntersecting) setUnreadMessages(0);
       scrolledBottomRef.current = isIntersecting;
-      setScrolledBottom(isIntersecting);
     } catch (e) {
       onError(e);
     }
