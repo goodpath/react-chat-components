@@ -120,8 +120,17 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   const savedScrollAnchorRef = useRef<{ timetoken: string; offsetFromTop: number } | null>(null);
   // Flag to temporarily ignore intersection observer during scroll restore
   const isRestoringScrollRef = useRef(false);
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  const listSizeObserver = useRef(new ResizeObserver(() => {}));
+  // Track if we're in the initial settling phase (container size may change as siblings render)
+  const isInitialSettlingRef = useRef(false);
+  // ResizeObserver to re-scroll when container size changes during initial settling
+  const listSizeObserver = useRef(
+    new ResizeObserver(() => {
+      // Re-scroll to bottom when container size changes and we should be at the bottom
+      if (isInitialSettlingRef.current && scrolledBottomRef.current && endRef.current) {
+        endRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+    })
+  );
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   const listMutObserver = useRef(new MutationObserver(() => {}));
   // IntersectionObservers will be initialized in setupObservers with proper root
@@ -136,7 +145,8 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if (!listRef.current) return;
     scrolledBottomRef.current = true;
     setScrolledBottom(true);
-    requestAnimationFrame(() => {
+
+    const doScroll = () => {
       // Use scrollIntoView for better compatibility with Dialog containers
       if (endRef.current) {
         endRef.current.scrollIntoView({ behavior: "auto", block: "end" });
@@ -145,6 +155,20 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
       if (listRef.current) {
         listRef.current.scrollTop = listRef.current.scrollHeight;
       }
+    };
+
+    // Enable initial settling mode - ResizeObserver will re-scroll if container size changes
+    isInitialSettlingRef.current = true;
+
+    // Use double requestAnimationFrame to wait for Dialog/container transitions
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        doScroll();
+        // Disable settling mode after layout has stabilized (500ms should be enough)
+        setTimeout(() => {
+          isInitialSettlingRef.current = false;
+        }, 500);
+      });
     });
   }, []);
 
@@ -407,6 +431,14 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if (!messages?.length) fetchHistory();
     setupSpinnerObserver();
     setupListObservers();
+
+    // Cleanup observers on unmount or channel change
+    return () => {
+      spinnerIntObserver.current?.disconnect();
+      bottomIntObserver.current?.disconnect();
+      listSizeObserver.current.disconnect();
+      listMutObserver.current.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
 
@@ -465,7 +497,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         });
       });
     }
-  });
+  }, [props.unreadFromTimetoken]);
 
   // Save scroll anchor when unreadFromTimetoken is about to change
   // This runs during render, before useLayoutEffect

@@ -38,8 +38,8 @@ describe("Message List", () => {
     render(<MessageList welcomeMessages={message} />);
 
     expect(screen.getByText("Welcome")).toBeVisible();
-    // Time display depends on local timezone, so use regex to match time format
-    expect(screen.getByText(/\d{1,2}:\d{2}\s[AP]M/)).toBeVisible();
+    // Time display depends on locale, so use locale-agnostic regex (12h or 24h format)
+    expect(screen.getByText(/\d{1,2}:\d{2}(\s?[AP]M)?/)).toBeVisible();
   });
 
   test("renders messages with custom message renderer", async () => {
@@ -58,7 +58,7 @@ describe("Message List", () => {
 
     expect(screen.getByText("Custom Welcome")).toBeVisible();
     // Custom message renderer replaces entire message, so no time should be shown
-    expect(screen.queryByText(/\d{1,2}:\d{2}\s[AP]M/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d{1,2}:\d{2}(\s?[AP]M)?/)).not.toBeInTheDocument();
   });
 
   test("renders messages with custom bubble renderer", async () => {
@@ -76,8 +76,8 @@ describe("Message List", () => {
     );
 
     expect(screen.getByText("Custom Welcome")).toBeVisible();
-    // Time display depends on local timezone, so use regex to match time format
-    expect(screen.getByText(/\d{1,2}:\d{2}\s[AP]M/)).toBeVisible();
+    // Time display depends on locale, so use locale-agnostic regex (12h or 24h format)
+    expect(screen.getByText(/\d{1,2}:\d{2}(\s?[AP]M)?/)).toBeVisible();
   });
 
   test("renders extra actions", async () => {
