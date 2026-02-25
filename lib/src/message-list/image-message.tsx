@@ -1,8 +1,8 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useState } from "react";
 import SpinnerIcon from "../icons/spinner.svg";
 import { FileAttachment } from "../types";
 
-export const ImageMessage = memo(({ file, scrolledBottom, scrollToBottom }: Props) => {
+const ImageMessageComponent = ({ file }: Props) => {
   const [loading, setLoading] = useState(true);
   const [style, setStyle] = useState({});
 
@@ -17,8 +17,7 @@ export const ImageMessage = memo(({ file, scrolledBottom, scrollToBottom }: Prop
     }
 
     setLoading(false);
-
-    if (scrolledBottom) scrollToBottom();
+    // Note: We intentionally don't scroll here. Scroll only happens on initial chat open.
   }, []);
 
   return (
@@ -37,7 +36,10 @@ export const ImageMessage = memo(({ file, scrolledBottom, scrollToBottom }: Prop
       />
     </>
   );
-});
+};
+
+export const ImageMessage = memo(ImageMessageComponent);
+ImageMessage.displayName = "ImageMessage";
 
 const styles = {
   spinnerContainer: {
@@ -53,6 +55,4 @@ const styles = {
 
 type Props = {
   file: FileAttachment;
-  scrolledBottom: boolean;
-  scrollToBottom: () => void;
 };

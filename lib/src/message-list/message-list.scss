@@ -135,6 +135,32 @@
     width: 100%;
   }
 
+  &__unread-divider {
+    align-items: center;
+    display: flex;
+    margin: 8px 16px;
+
+    &--hidden {
+      display: none;
+    }
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 2px;
+      background: var(--chat--light__color--3, #c0392b);
+    }
+
+    span {
+      color: var(--chat--light__color--3, #c0392b);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 0 12px;
+      text-transform: uppercase;
+    }
+  }
+
   &__spacer {
     flex: 1 1 auto;
   }
@@ -165,6 +191,14 @@
     .pn-msg__actions {
       display: flex;
     }
+  }
+
+  &--unread {
+    background: var(--msg--unread__background, rgba(231, 76, 60, 0.08));
+  }
+
+  &--unread:hover {
+    background: var(--msg--unread-hover__background, rgba(231, 76, 60, 0.12));
   }
 
   &__actions {
@@ -230,12 +264,25 @@
     padding: var(--msg__author__padding);
   }
 
+  &__true-sender {
+    color: var(--msg__time__color);
+    font-size: var(--msg__time__fontSize);
+    font-weight: var(--msg__time__fontWeight);
+    font-style: italic;
+  }
+
   &__time {
     display: var(--msg__time__display);
     color: var(--msg__time__color);
     font-size: var(--msg__time__fontSize);
     font-weight: var(--msg__time__fontWeight);
     padding: var(--msg__time__padding);
+  }
+
+  &__avatar-wrapper {
+    position: relative;
+    margin: var(--msg__avatar__margin);
+    flex: none;
   }
 
   &__avatar {
@@ -247,13 +294,36 @@
     font-size: var(--msg__avatar__fontSize);
     height: var(--msg__avatar__size);
     justify-content: center;
-    margin: var(--msg__avatar__margin);
+    margin: 0;
     width: var(--msg__avatar__size);
 
     img {
       border-radius: var(--msg__avatar__borderRadius);
       height: 100%;
       width: 100%;
+    }
+  }
+
+  &__true-sender-badge {
+    align-items: center;
+    border-radius: 50%;
+    border: 2px solid var(--msg-list__background);
+    bottom: -4px;
+    color: var(--msg-list__background);
+    display: flex;
+    font-size: 7px;
+    font-weight: 600;
+    height: 18px;
+    justify-content: center;
+    position: absolute;
+    right: -4px;
+    width: 18px;
+
+    img {
+      border-radius: 50%;
+      height: 100%;
+      width: 100%;
+      object-fit: cover;
     }
   }
 

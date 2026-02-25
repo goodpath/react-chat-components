@@ -4,6 +4,7 @@ import React, {
   useRef,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   ReactNode,
   ReactElement,
@@ -62,6 +63,12 @@ export interface MessageListProps {
   filter?: (message: MessageEnvelope) => boolean;
   /** Callback run on a list scroll. */
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
+  /** Optional callback to determine if the current user can edit a message. If not provided, defaults to checking if the user is the message owner. */
+  canEditMessage?: (envelope: MessageEnvelope) => boolean;
+  /** Optional callback to determine if the current user can delete a message. If not provided, defaults to checking if the user is the message owner. */
+  canDeleteMessage?: (envelope: MessageEnvelope) => boolean;
+  /** Timetoken from which messages should be visually marked as unread. Shows a divider line and highlights messages at or after this timetoken. */
+  unreadFromTimetoken?: string | number;
 }
 
 /**
@@ -85,7 +92,6 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   const retry = retryObj.function;
   const onError = onErrorObj.function;
 
-  const [scrolledBottom, setScrolledBottom] = useState(true);
   const [prevMessages, setPrevMessages] = useState([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [fetchingMessages, setFetchingMessages] = useState(false);
@@ -100,28 +106,88 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if ((event.target as Element).closest(".pn-msg__reactions-toggle")) return;
     setEmojiPickerShown(false);
   });
-  const listSizeObserver = useRef(new ResizeObserver(() => handleListMutations()));
-  const listMutObserver = useRef(new MutationObserver(() => handleListMutations()));
-  const spinnerIntObserver = useRef(
-    new IntersectionObserver((e) => e[0].isIntersecting === true && fetchMoreHistory())
+  // Track whether we need initial scroll (set to false after first scroll)
+  const needsInitialScroll = useRef(true);
+  // Track scrolledBottom in a ref for use in callbacks without stale closure issues
+  const scrolledBottomRef = useRef(true);
+  // Track previous unreadFromTimetoken to detect changes
+  const prevUnreadFromTimetokenRef = useRef(props.unreadFromTimetoken);
+  // Store scroll anchor info to restore after unread state changes
+  // We save which message was at the top of the viewport and its offset
+  const savedScrollAnchorRef = useRef<{ timetoken: string; offsetFromTop: number } | null>(null);
+  // Flag to temporarily ignore intersection observer during scroll restore
+  const isRestoringScrollRef = useRef(false);
+  // Track if we're in the initial settling phase (container size may change as siblings render)
+  const isInitialSettlingRef = useRef(false);
+  // ResizeObserver to re-scroll when container size changes during initial settling
+  const listSizeObserver = useRef(
+    new ResizeObserver(() => {
+      // Re-scroll to bottom when container size changes and we should be at the bottom
+      if (isInitialSettlingRef.current && scrolledBottomRef.current && endRef.current) {
+        endRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+    })
   );
-  const bottomIntObserver = useRef(
-    new IntersectionObserver((e) => handleBottomIntersection(e[0].isIntersecting))
-  );
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const listMutObserver = useRef(new MutationObserver(() => {}));
+  // IntersectionObservers will be initialized in setupObservers with proper root
+  const spinnerIntObserver = useRef<IntersectionObserver | null>(null);
+  const bottomIntObserver = useRef<IntersectionObserver | null>(null);
 
   /*
   /* Helper functions
   */
 
   const scrollToBottom = useCallback(() => {
-    if (!endRef.current) return;
-    setScrolledBottom(true);
-    endRef.current.scrollIntoView({ block: "end" });
+    if (!listRef.current) return;
+    scrolledBottomRef.current = true;
+
+    const doScroll = () => {
+      // Use scrollIntoView for better compatibility with Dialog containers
+      if (endRef.current) {
+        endRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+      // Also set scrollTop as fallback
+      if (listRef.current) {
+        listRef.current.scrollTop = listRef.current.scrollHeight;
+      }
+    };
+
+    // Enable initial settling mode - ResizeObserver will re-scroll if container size changes
+    isInitialSettlingRef.current = true;
+
+    // Use double requestAnimationFrame to wait for Dialog/container transitions
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        doScroll();
+        // Disable settling mode after layout has stabilized (500ms should be enough)
+        setTimeout(() => {
+          isInitialSettlingRef.current = false;
+        }, 500);
+      });
+    });
   }, []);
 
   const setupSpinnerObserver = () => {
-    if (!spinnerRef.current) return;
+    if (!spinnerRef.current || !listRef.current) return;
+    spinnerIntObserver.current?.disconnect();
+    // Use listRef as root so observer works correctly inside Dialog containers
+    spinnerIntObserver.current = new IntersectionObserver(
+      (e) => e[0].isIntersecting === true && fetchMoreHistory(),
+      { root: listRef.current }
+    );
     spinnerIntObserver.current.observe(spinnerRef.current);
+  };
+
+  const setupBottomObserver = () => {
+    if (!endRef.current || !listRef.current) return;
+    bottomIntObserver.current?.disconnect();
+    // Use listRef as root so observer works correctly inside Dialog containers
+    bottomIntObserver.current = new IntersectionObserver(
+      (e) => handleBottomIntersection(e[0].isIntersecting),
+      { root: listRef.current }
+    );
+    bottomIntObserver.current.observe(endRef.current);
   };
 
   const setupListObservers = () => {
@@ -132,10 +198,18 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
     listMutObserver.current.disconnect();
     listMutObserver.current.observe(listRef.current, { childList: true });
+
+    // Set up bottom observer to track scroll position
+    setupBottomObserver();
   };
 
-  const isOwnMessage = (uuid: string) => {
-    return pubnub.getUUID() === uuid;
+  const isOwnMessage = (envelope: MessageEnvelope) => {
+    const currentUuid = pubnub.getUUID();
+    const publisherUuid = envelope.uuid || envelope.publisher || "";
+    // Check if the message was sent by the current user, either directly
+    // or via a persona (trueSenderId in meta indicates the actual sender)
+    const trueSenderId = envelope.meta?.trueSenderId as string | undefined;
+    return currentUuid === publisherUuid || currentUuid === trueSenderId;
   };
 
   /*
@@ -151,6 +225,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
           channels: [channel],
           count: props.fetchMessages,
           includeMessageActions: true,
+          includeMeta: true,
         })
       );
       handleHistoryFetch(history);
@@ -183,6 +258,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
             count: props.fetchMessages,
             start: (messages?.[0].timetoken as number) || undefined,
             includeMessageActions: true,
+            includeMeta: true,
           })
         );
         handleHistoryFetch(history);
@@ -283,16 +359,10 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   const handleBottomIntersection = (isIntersecting: boolean) => {
     try {
+      // Ignore intersection events while restoring scroll position
+      if (isRestoringScrollRef.current) return;
       if (isIntersecting) setUnreadMessages(0);
-      setScrolledBottom(isIntersecting);
-    } catch (e) {
-      onError(e);
-    }
-  };
-
-  const handleListMutations = () => {
-    try {
-      scrolledBottom && scrollToBottom();
+      scrolledBottomRef.current = isIntersecting;
     } catch (e) {
       onError(e);
     }
@@ -306,7 +376,12 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         ((response?.channels[channel] || []).map((m) =>
           m.messageType === 4 ? fetchFileUrl(m) : m
         ) as MessageEnvelope[]) || [];
-      const allMessages = [...messages, ...newMessages].sort(
+      // Deduplicate by timetoken to prevent duplicate messages
+      const existingTimetokens = new Set(messages.map((m) => String(m.timetoken)));
+      const uniqueNewMessages = newMessages.filter(
+        (m) => !existingTimetokens.has(String(m.timetoken))
+      );
+      const allMessages = [...messages, ...uniqueNewMessages].sort(
         (a, b) => (a.timetoken as number) - (b.timetoken as number)
       );
       setEmojiPickerShown(false);
@@ -316,7 +391,7 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
         CurrentChannelPaginationAtom,
         !allMessages.length || newMessages.length !== props.fetchMessages
       );
-      if (response.more) {
+      if ("more" in response && (response as { more?: boolean }).more) {
         fetchMoreHistory();
       }
     }, [])
@@ -347,9 +422,19 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
   useEffect(() => {
     if (!pubnub || !channel) return;
+    needsInitialScroll.current = true; // Reset for new channel
     if (!messages?.length) fetchHistory();
     setupSpinnerObserver();
     setupListObservers();
+
+    // Cleanup observers on unmount or channel change
+    return () => {
+      spinnerIntObserver.current?.disconnect();
+      bottomIntObserver.current?.disconnect();
+      listSizeObserver.current.disconnect();
+      listMutObserver.current.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
 
   useEffect(() => {
@@ -361,14 +446,79 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
   useEffect(() => {
     if (!messages?.length) return;
 
-    const messagesFromListener = messages.length - prevMessages.length;
+    const newMessageCount = messages.length - prevMessages.length;
+    const newestMessage = messages[messages.length - 1];
+    const isNewestOwn = newestMessage && isOwnMessage(newestMessage);
 
-    if (scrolledBottom) scrollToBottom();
-    if (!scrolledBottom && messagesFromListener)
-      setUnreadMessages(unreadMessages + messagesFromListener);
+    // Scroll to bottom when:
+    // 1. Initial load (needsInitialScroll)
+    // 2. User sent a message (always scroll for own messages)
+    // 3. New message arrived and user is at bottom
+    if (
+      needsInitialScroll.current ||
+      isNewestOwn ||
+      (scrolledBottomRef.current && newMessageCount > 0)
+    ) {
+      needsInitialScroll.current = false;
+      scrollToBottom();
+    } else if (newMessageCount > 0) {
+      setUnreadMessages((prev) => prev + newMessageCount);
+    }
 
     setPrevMessages(messages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
+
+  // Preserve scroll position when unreadFromTimetoken changes (marking read/unread)
+  // Use useLayoutEffect to restore scroll position after layout changes
+  useLayoutEffect(() => {
+    // Restore scroll to the same message that was visible before the change
+    if (savedScrollAnchorRef.current !== null && listRef.current) {
+      isRestoringScrollRef.current = true;
+      const { timetoken, offsetFromTop } = savedScrollAnchorRef.current;
+      const messageEl = listRef.current.querySelector(`[data-timetoken="${timetoken}"]`);
+      if (messageEl) {
+        const messageRect = messageEl.getBoundingClientRect();
+        const listRect = listRef.current.getBoundingClientRect();
+        const currentOffset = messageRect.top - listRect.top;
+        const scrollAdjustment = currentOffset - offsetFromTop;
+        listRef.current.scrollTop += scrollAdjustment;
+      }
+      // Clear after a frame to allow normal scroll behavior to resume
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          savedScrollAnchorRef.current = null;
+          isRestoringScrollRef.current = false;
+        });
+      });
+    }
+  }, [props.unreadFromTimetoken]);
+
+  // Save scroll anchor when unreadFromTimetoken is about to change
+  // This runs during render, before useLayoutEffect
+  if (props.unreadFromTimetoken !== prevUnreadFromTimetokenRef.current) {
+    if (listRef.current && savedScrollAnchorRef.current === null) {
+      // Find the first message element that is visible in the viewport
+      const listRect = listRef.current.getBoundingClientRect();
+      const messageEls = Array.from(listRef.current.querySelectorAll("[data-timetoken]"));
+      for (let i = 0; i < messageEls.length; i++) {
+        const el = messageEls[i];
+        const rect = el.getBoundingClientRect();
+        // Check if this message is at least partially visible
+        if (rect.bottom > listRect.top && rect.top < listRect.bottom) {
+          const timetoken = el.getAttribute("data-timetoken");
+          if (timetoken) {
+            savedScrollAnchorRef.current = {
+              timetoken,
+              offsetFromTop: rect.top - listRect.top,
+            };
+            break;
+          }
+        }
+      }
+    }
+    prevUnreadFromTimetokenRef.current = props.unreadFromTimetoken;
+  }
 
   /*
   /* Renderers
@@ -383,15 +533,25 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     );
   };
 
-  const Item = ({ envelope }: { envelope: MessageEnvelope }) => {
-    const uuid = envelope.uuid || envelope.publisher || "";
-    const isOwn = isOwnMessage(uuid);
+  const Item = ({
+    envelope,
+    isUnread,
+    isFirstUnread,
+  }: {
+    envelope: MessageEnvelope;
+    isUnread?: boolean;
+    isFirstUnread?: boolean;
+  }) => {
+    const isOwn = isOwnMessage(envelope);
     const currentUserClass = isOwn ? "pn-msg--own" : "";
+    const unreadClass = isUnread ? "pn-msg--unread" : "";
     const actions = envelope.actions;
     const deleted = !!Object.keys(actions?.deleted || {}).length;
     const isFile = isFilePayload(envelope.message);
     const message = (isFile ? envelope.message.message : envelope.message) as MessagePayload;
-    const canEdit = isOwn && !isFile;
+    const canEditBase = props.canEditMessage ? props.canEditMessage(envelope) : isOwn;
+    const canEdit = canEditBase && !isFile;
+    const canDelete = props.canDeleteMessage ? props.canDeleteMessage(envelope) : isOwn;
     const [edit, setEdit] = React.useState(false);
 
     const onEditHandler = (value: string) => {
@@ -406,41 +566,53 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
     if (deleted) return null;
 
     return (
-      <div className={`pn-msg ${currentUserClass}`} key={envelope.timetoken}>
-        {edit ? (
-          <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
-        ) : (
-          <MessageRenderer
-            envelope={envelope}
-            messageListProps={props}
-            scrollToBottom={scrollToBottom}
-            scrolledBottom={scrolledBottom}
-            renderReactions={renderReactions}
-          />
-        )}
-        <div className="pn-msg__actions">
-          {props.extraActionsRenderer && props.extraActionsRenderer(envelope)}
-          {props.reactionsPicker && message?.type !== "welcome" && (
-            <div
-              className="pn-msg__reactions-toggle"
-              title="Add a reaction"
-              onClick={(e) => {
-                emojiPickerShown && reactingToMessage === envelope.timetoken
-                  ? setEmojiPickerShown(false)
-                  : handleOpenReactions(e, envelope.timetoken);
-              }}
-            >
-              <EmojiIcon />
-            </div>
-          )}
-          <MessageActions
-            canEdit={canEdit}
-            onEdit={() => setEdit(!edit)}
-            canDelete={isOwn}
-            onDelete={onDeleteHandler}
-          />
+      <>
+        {/* Always render divider but hide with CSS to avoid DOM mutations that trigger scroll */}
+        <div
+          className={`pn-msg-list__unread-divider ${
+            isFirstUnread ? "" : "pn-msg-list__unread-divider--hidden"
+          }`}
+        >
+          <span>New messages</span>
         </div>
-      </div>
+        <div
+          className={`pn-msg ${currentUserClass} ${unreadClass}`}
+          key={envelope.timetoken}
+          data-timetoken={String(envelope.timetoken)}
+        >
+          {edit ? (
+            <MessageEditor envelope={envelope} onSubmit={onEditHandler} />
+          ) : (
+            <MessageRenderer
+              envelope={envelope}
+              messageListProps={props}
+              renderReactions={renderReactions}
+            />
+          )}
+          <div className="pn-msg__actions">
+            {props.extraActionsRenderer && props.extraActionsRenderer(envelope)}
+            {props.reactionsPicker && message?.type !== "welcome" && (
+              <div
+                className="pn-msg__reactions-toggle"
+                title="Add a reaction"
+                onClick={(e) => {
+                  emojiPickerShown && reactingToMessage === envelope.timetoken
+                    ? setEmojiPickerShown(false)
+                    : handleOpenReactions(e, envelope.timetoken);
+                }}
+              >
+                <EmojiIcon />
+              </div>
+            )}
+            <MessageActions
+              canEdit={canEdit}
+              onEdit={() => setEdit(!edit)}
+              canDelete={canDelete}
+              onDelete={onDeleteHandler}
+            />
+          </div>
+        </div>
+      </>
     );
   };
 
@@ -506,10 +678,56 @@ export const MessageList: FC<MessageListProps> = (props: MessageListProps) => {
 
         {(!props.fetchMessages || (!fetchingMessages && !messages.length)) &&
           renderWelcomeMessages()}
-        {messages &&
-          messages.map((m) => {
-            return <Item key={m.timetoken} envelope={m} />;
-          })}
+        {(() => {
+          // Convert unreadFromTimetoken once before the loop for performance
+          let unreadFromTTBigInt: bigint | null = null;
+          let unreadFromTTNumber: number | null = null;
+          let useBigInt = true;
+          if (props.unreadFromTimetoken) {
+            try {
+              unreadFromTTBigInt = BigInt(props.unreadFromTimetoken);
+            } catch {
+              // Fallback to Number if BigInt conversion fails
+              useBigInt = false;
+              unreadFromTTNumber = Number(props.unreadFromTimetoken);
+            }
+          }
+
+          return messages?.map((m, index) => {
+            let isUnread = false;
+            let isFirstUnread = false;
+            if (props.unreadFromTimetoken) {
+              if (useBigInt && unreadFromTTBigInt !== null) {
+                const msgTT = BigInt(m.timetoken);
+                isUnread = msgTT >= unreadFromTTBigInt;
+
+                if (isUnread && index > 0) {
+                  const prevMsgTT = BigInt(messages[index - 1].timetoken);
+                  isFirstUnread = !(prevMsgTT >= unreadFromTTBigInt);
+                } else if (isUnread) {
+                  isFirstUnread = true;
+                }
+              } else if (unreadFromTTNumber !== null) {
+                const msgTT = Number(m.timetoken);
+                isUnread = msgTT >= unreadFromTTNumber;
+                if (isUnread && index > 0) {
+                  const prevMsgTT = Number(messages[index - 1].timetoken);
+                  isFirstUnread = !(prevMsgTT >= unreadFromTTNumber);
+                } else if (isUnread) {
+                  isFirstUnread = true;
+                }
+              }
+            }
+            return (
+              <Item
+                key={m.timetoken}
+                envelope={m}
+                isUnread={isUnread}
+                isFirstUnread={isFirstUnread}
+              />
+            );
+          });
+        })()}
 
         {props.children}
 
